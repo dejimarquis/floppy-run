@@ -18,7 +18,7 @@ function renderGames() {
            onerror="this.src='/covers/placeholder.jpg'">
       <div class="game-title">
         <span>${game.title}</span>
-        <span class="text-gray-400 text-xs block">${game.year}</span>
+        <span class="text-gray-400 text-xs block">${game.year}${game.type === 'html' ? ' • NEW' : ''}</span>
       </div>
     </div>
   `).join('');
@@ -32,14 +32,21 @@ function renderGames() {
 }
 
 async function launchGame(game) {
+  currentGameId = game.id;
+  gameStartTime = Date.now();
+  trackGameStart(game.id, game.title);
+
+  if (game.type === 'html') {
+    // Open HTML game in new tab or iframe
+    window.open(game.url, '_blank');
+    return;
+  }
+
+  // DOS game
   modalTitle.textContent = game.title;
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
-
-  currentGameId = game.id;
-  gameStartTime = Date.now();
-  trackGameStart(game.id, game.title);
 
   gameContainer.innerHTML = '';
   const dosDiv = document.createElement('div');
@@ -47,16 +54,15 @@ async function launchGame(game) {
   dosDiv.style.height = '100%';
   gameContainer.appendChild(dosDiv);
 
-  // Desktop-optimized js-dos config
   currentDos = Dos(dosDiv, {
     url: game.bundle,
     autoStart: true,
-    kiosk: true,           // Clean UI, no sidebars
+    kiosk: true,
     noCloud: true,
     noNetworking: true,
     theme: 'dark',
-    scaleControls: 0,      // Hide touch controls
-    mouseCapture: true,    // Capture mouse for FPS games
+    scaleControls: 0,
+    mouseCapture: true,
   });
 }
 
