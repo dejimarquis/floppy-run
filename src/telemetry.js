@@ -1,7 +1,7 @@
 // Lightweight telemetry - respects privacy, no PII
 // Sends to Azure Application Insights or custom endpoint
 
-const TELEMETRY_ENDPOINT = window.PIXELDUST_TELEMETRY_ENDPOINT || null;
+const TELEMETRY_ENDPOINT = window.FLOPPY_TELEMETRY_ENDPOINT || null;
 const SESSION_ID = crypto.randomUUID();
 
 // Track page view
