@@ -6,6 +6,8 @@
   <title>Floppy.run - Play Retro Games</title>
   <meta name="description" content="Free retro games from the 90s. No ads, no bloat, just play.">
   <link rel="stylesheet" href="/src/styles.css">
+  <link rel="stylesheet" href="https://v8.js-dos.com/latest/js-dos.css">
+  <script src="https://v8.js-dos.com/latest/js-dos.js"></script>
 </head>
 <body class="bg-gray-950 text-white min-h-screen">
   <header class="border-b border-gray-800 py-6">
@@ -24,9 +26,9 @@
   <div id="game-modal" class="fixed inset-0 bg-black hidden z-50 flex-col">
     <div class="flex items-center justify-between p-4 border-b border-gray-800">
       <h2 id="modal-title" class="text-xl font-semibold"></h2>
-      <button id="close-modal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      <button id="close-modal" class="text-gray-400 hover:text-white text-2xl px-3">&times;</button>
     </div>
-    <div id="game-container" class="flex-1"></div>
+    <div id="game-container" class="flex-1 bg-black"></div>
   </div>
 
   <footer class="border-t border-gray-800 py-6 mt-12">
