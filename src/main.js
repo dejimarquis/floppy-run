@@ -4,10 +4,9 @@ import { trackGameStart, trackGameEnd, trackMetric } from './telemetry.js';
 const gamesContainer = document.getElementById('games');
 const modal = document.getElementById('game-modal');
 const modalTitle = document.getElementById('modal-title');
-const dosContainer = document.getElementById('dos-container');
+const gameContainer = document.getElementById('game-container');
 const closeBtn = document.getElementById('close-modal');
 
-let currentDos = null;
 let gameStartTime = null;
 let currentGameId = null;
 
@@ -24,7 +23,6 @@ function renderGames() {
     </div>
   `).join('');
 
-  // Add click handlers
   gamesContainer.querySelectorAll('.game-card').forEach(card => {
     card.addEventListener('click', () => {
       const gameId = card.dataset.gameId;
@@ -34,10 +32,9 @@ function renderGames() {
   });
 }
 
-// Launch game in modal
+// Launch game
 async function launchGame(game) {
   modalTitle.textContent = game.title;
-  dosContainer.innerHTML = '<div class="loader"></div>';
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
@@ -46,27 +43,52 @@ async function launchGame(game) {
   gameStartTime = Date.now();
   trackGameStart(game.id, game.title);
 
-  try {
-    // Load js-dos dynamically
-    const { Dos } = await import('js-dos');
-    
-    dosContainer.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.id = 'dos-canvas';
-    canvas.style.maxWidth = '100%';
-    canvas.style.maxHeight = '80vh';
-    dosContainer.appendChild(canvas);
+  // DOS games - open in new tab (DOS.Zone)
+  if (game.system === 'dos' && game.dosUrl) {
+    gameContainer.innerHTML = `
+      <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+        <p class="text-xl mb-4">Opening ${game.title}...</p>
+        <p class="text-gray-400 mb-6">DOS games run on DOS.Zone in a new tab.</p>
+        <a href="${game.dosUrl}" target="_blank" rel="noopener" 
+           class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-lg font-medium">
+          Play ${game.title} →
+        </a>
+      </div>
+    `;
+    return;
+  }
 
-    currentDos = await Dos(canvas, {
-      url: game.bundle,
-      autoStart: true
-    });
-  } catch (err) {
-    console.error('Failed to load game:', err);
-    dosContainer.innerHTML = `
-      <div class="text-center p-8">
-        <p class="text-red-400 mb-4">Failed to load ${game.title}</p>
-        <p class="text-gray-500 text-sm">Game bundle may be missing or corrupted.</p>
+  // Console games - EmulatorJS
+  if (game.rom) {
+    gameContainer.innerHTML = `<div id="ejs-game" style="width:100%;height:100%;"></div>`;
+
+    window.EJS_player = '#ejs-game';
+    window.EJS_gameUrl = game.rom;
+    window.EJS_core = game.system;
+    window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoaded = true;
+    window.EJS_color = '#1f2937';
+    window.EJS_backgroundColor = '#000';
+    window.EJS_disableDatabases = true;
+
+    const script = document.createElement('script');
+    script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+    script.onerror = () => {
+      gameContainer.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+          <p class="text-red-400 text-xl mb-4">Failed to load emulator</p>
+          <p class="text-gray-400">Check your connection and try again.</p>
+        </div>
+      `;
+    };
+    document.body.appendChild(script);
+  } else {
+    // No ROM available
+    gameContainer.innerHTML = `
+      <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+        <p class="text-yellow-400 text-xl mb-4">ROM not found</p>
+        <p class="text-gray-400 mb-2">Add the ROM file to play:</p>
+        <code class="bg-gray-800 px-4 py-2 rounded text-sm">/roms/${game.id}.${game.system === 'nes' ? 'nes' : game.system === 'snes' ? 'sfc' : 'md'}</code>
       </div>
     `;
   }
@@ -74,11 +96,6 @@ async function launchGame(game) {
 
 // Close modal
 function closeGame() {
-  if (currentDos) {
-    currentDos.stop?.();
-    currentDos = null;
-  }
-
   if (gameStartTime && currentGameId) {
     const duration = Date.now() - gameStartTime;
     const game = games.find(g => g.id === currentGameId);
@@ -88,20 +105,29 @@ function closeGame() {
     currentGameId = null;
   }
 
+  // Clean up EmulatorJS
+  if (window.EJS_emulator) {
+    try { window.EJS_emulator.exit(); } catch(e) {}
+  }
+  delete window.EJS_player;
+  delete window.EJS_gameUrl;
+  delete window.EJS_core;
+  delete window.EJS_emulator;
+
   modal.classList.add('hidden');
   modal.classList.remove('flex');
-  dosContainer.innerHTML = '';
+  gameContainer.innerHTML = '';
   document.body.style.overflow = '';
+  
+  document.querySelectorAll('script[src*="emulatorjs"]').forEach(s => s.remove());
 }
 
 closeBtn.addEventListener('click', closeGame);
 
-// ESC to close
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
     closeGame();
   }
 });
 
-// Init
 renderGames();

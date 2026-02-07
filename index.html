@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Floppy.run - Play Retro PC Games</title>
-  <meta name="description" content="Free retro PC games from the 90s. No ads, no bloat, just play.">
+  <title>Floppy.run - Play Retro Games</title>
+  <meta name="description" content="Free retro games from the 90s. No ads, no bloat, just play.">
   <link rel="stylesheet" href="/src/styles.css">
 </head>
 <body class="bg-gray-950 text-white min-h-screen">
   <header class="border-b border-gray-800 py-6">
     <div class="max-w-6xl mx-auto px-4">
       <h1 class="text-4xl font-bold tracking-tight">Floppy.run</h1>
-      <p class="text-gray-400 mt-1">Retro PC games. No bloat. Just play.</p>
+      <p class="text-gray-400 mt-1">Retro games. No bloat. Just play.</p>
     </div>
   </header>
 
@@ -21,19 +21,17 @@
     </section>
   </main>
 
-  <div id="game-modal" class="fixed inset-0 bg-black/95 hidden z-50 flex-col">
+  <div id="game-modal" class="fixed inset-0 bg-black hidden z-50 flex-col">
     <div class="flex items-center justify-between p-4 border-b border-gray-800">
       <h2 id="modal-title" class="text-xl font-semibold"></h2>
       <button id="close-modal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
     </div>
-    <div id="dos-container" class="flex-1 flex items-center justify-center">
-      <!-- js-dos canvas -->
-    </div>
+    <div id="game-container" class="flex-1"></div>
   </div>
 
   <footer class="border-t border-gray-800 py-6 mt-12">
     <div class="max-w-6xl mx-auto px-4 text-center text-gray-500 text-sm">
-      <p>Games are abandonware. Play responsibly. No data collected except anonymous usage.</p>
+      <p>Play responsibly. No data collected except anonymous usage.</p>
     </div>
   </footer>
 

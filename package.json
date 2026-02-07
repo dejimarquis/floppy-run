@@ -14,7 +14,5 @@
     "postcss": "^8.4.0",
     "autoprefixer": "^10.4.0"
   },
-  "dependencies": {
-    "js-dos": "^8.0.0"
-  }
+  "dependencies": {}
 }
