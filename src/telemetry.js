@@ -1,70 +1,77 @@
-// Lightweight telemetry - respects privacy, no PII
-// Sends to Azure Application Insights or custom endpoint
+// Azure Application Insights telemetry
+// Docs: https://learn.microsoft.com/en-us/azure/azure-monitor/app/javascript-sdk
 
-const TELEMETRY_ENDPOINT = window.FLOPPY_TELEMETRY_ENDPOINT || null;
-const SESSION_ID = crypto.randomUUID();
+let appInsights = null;
 
-// Track page view
-function trackPageView() {
-  track('pageview', {
-    path: window.location.pathname,
-    referrer: document.referrer || null
-  });
-}
-
-// Track game start
-export function trackGameStart(gameId) {
-  track('game_start', { gameId });
-}
-
-// Track game session duration
-export function trackGameEnd(gameId, durationMs) {
-  track('game_end', { 
-    gameId, 
-    durationMs,
-    durationMin: Math.round(durationMs / 60000)
-  });
-}
-
-// Core tracking function
-function track(event, data = {}) {
-  if (!TELEMETRY_ENDPOINT) {
-    console.debug('[telemetry]', event, data);
+// Initialize App Insights (call once on page load)
+export function initTelemetry() {
+  const connectionString = window.FLOPPY_APPINSIGHTS_CONNECTION_STRING;
+  
+  if (!connectionString) {
+    console.debug('[telemetry] No connection string configured, running in debug mode');
     return;
   }
 
-  const payload = {
-    event,
-    sessionId: SESSION_ID,
-    timestamp: new Date().toISOString(),
-    userAgent: navigator.userAgent,
-    screenWidth: window.screen.width,
-    screenHeight: window.screen.height,
-    ...data
-  };
+  // Load the App Insights SDK dynamically
+  const script = document.createElement('script');
+  script.src = 'https://js.monitor.azure.com/scripts/b/ai.3.gbl.min.js';
+  script.crossOrigin = 'anonymous';
+  script.onload = () => {
+    const cfg = {
+      connectionString,
+      enableAutoRouteTracking: true,
+      enableCorsCorrelation: true,
+      enableRequestHeaderTracking: true,
+      enableResponseHeaderTracking: true,
+      disableFetchTracking: false,
+      disableAjaxTracking: false
+    };
 
-  // Use sendBeacon for reliability
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon(TELEMETRY_ENDPOINT, JSON.stringify(payload));
+    // @ts-ignore
+    appInsights = new window.Microsoft.ApplicationInsights.ApplicationInsights({ config: cfg });
+    appInsights.loadAppInsights();
+    appInsights.trackPageView();
+    
+    console.debug('[telemetry] App Insights initialized');
+  };
+  
+  document.head.appendChild(script);
+}
+
+// Track custom events
+export function trackEvent(name, properties = {}) {
+  if (appInsights) {
+    appInsights.trackEvent({ name }, properties);
   } else {
-    fetch(TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      keepalive: true
-    }).catch(() => {});
+    console.debug('[telemetry]', name, properties);
   }
 }
 
-// DAU/MAU: tracked server-side by sessionId per day/month
+// Track game start
+export function trackGameStart(gameId, gameTitle) {
+  trackEvent('game_start', { gameId, gameTitle });
+}
 
-// Init
-if (typeof window !== 'undefined') {
-  trackPageView();
-  
-  // Track when user leaves
-  window.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      track('session_end');
-    }
+// Track game end with duration
+export function trackGameEnd(gameId, gameTitle, durationMs) {
+  trackEvent('game_end', { 
+    gameId, 
+    gameTitle,
+    durationMs,
+    durationMinutes: Math.round(durationMs / 60000)
   });
+}
+
+// Track metrics (e.g., game session length)
+export function trackMetric(name, value, properties = {}) {
+  if (appInsights) {
+    appInsights.trackMetric({ name, average: value }, properties);
+  } else {
+    console.debug('[telemetry] metric:', name, value, properties);
+  }
+}
+
+// Initialize on module load
+if (typeof window !== 'undefined') {
+  initTelemetry();
 }

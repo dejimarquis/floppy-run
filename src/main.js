@@ -1,5 +1,5 @@
 import { games } from './games.js';
-import { trackGameStart, trackGameEnd } from './telemetry.js';
+import { trackGameStart, trackGameEnd, trackMetric } from './telemetry.js';
 
 const gamesContainer = document.getElementById('games');
 const modal = document.getElementById('game-modal');
@@ -44,7 +44,7 @@ async function launchGame(game) {
 
   currentGameId = game.id;
   gameStartTime = Date.now();
-  trackGameStart(game.id);
+  trackGameStart(game.id, game.title);
 
   try {
     // Load js-dos dynamically
@@ -80,7 +80,10 @@ function closeGame() {
   }
 
   if (gameStartTime && currentGameId) {
-    trackGameEnd(currentGameId, Date.now() - gameStartTime);
+    const duration = Date.now() - gameStartTime;
+    const game = games.find(g => g.id === currentGameId);
+    trackGameEnd(currentGameId, game?.title || currentGameId, duration);
+    trackMetric('game_session_duration', duration, { gameId: currentGameId });
     gameStartTime = null;
     currentGameId = null;
   }

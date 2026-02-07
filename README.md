@@ -24,15 +24,16 @@ npm run dev
 
 ## Telemetry
 
-Set `NA_TELEMETRY_ENDPOINT` in your env to enable tracking.
+Uses Azure Application Insights JavaScript SDK. Set `FLOPPY_APPINSIGHTS_CONNECTION_STRING` in your env.
 
-Events tracked:
-- `pageview` - Page loads
-- `game_start` - Game launched
-- `game_end` - Game closed (with duration)
-- `session_end` - User leaves
+Auto-tracked:
+- Page views, sessions, user counts (DAU/MAU built-in)
+- Browser info, geo, performance
 
-DAU/MAU calculated server-side from sessionId.
+Custom events:
+- `game_start` - Game launched (gameId, gameTitle)
+- `game_end` - Game closed (gameId, gameTitle, durationMs)
+- `game_session_duration` - Metric for session length
 
 ## Deployment
 
