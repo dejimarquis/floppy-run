@@ -1,0 +1,8 @@
+{
+  "name": "floppy-run-api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "applicationinsights": "^3.0.0"
+  }
+}
