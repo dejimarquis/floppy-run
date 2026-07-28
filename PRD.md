@@ -1,167 +1,127 @@
-# Floppy.run Product Brief
+# Floppy.run — Product Requirements Document
 
-## Product promise
+## What Is This?
 
-Floppy.run brings back games as they are remembered: immediate, physical, slightly unruly, and worth
-one more run. The games are original and legally clean, but the sensation must be specific enough that
-the inspiration is obvious without explanatory copy.
+A retro gaming website where people can play classic-style games instantly in their browser. No downloads, no accounts, no friction.
 
-**One-liner:** The games you remember, rebuilt for the browser.
+**One-liner:** Classic games. Zero friction.
 
-## Current flagship
+---
 
-The first shippable experience is **Chain Gang**, an original motorcycle-combat road racer inspired by
-the gameplay principles of *Road Rash (1994)*.
+## The Problem
 
-Rally follows only after Chain Gang meets its nostalgia and feel gates. Doom/Freedoom remains a
-separate integration project.
+You want to play Road Rash, Burnout, or that ping pong game you loved as a kid. But:
+- Original ROMs are legally risky
+- Emulator setup is annoying
+- Mobile games are full of ads and IAPs
+- Nothing captures that simple, immediate fun anymore
 
-## North-star memory
+## The Solution
 
-The user-supplied *Road Rash (1994)* frame is the visual and emotional reference:
+Build a site with **original games that look and feel like the classics** — legally clean, browser-native, instant-play.
 
-- a bright blue sky and natural daylight;
-- distant pale mountains and rolling green terrain;
-- a broad two-lane road that visibly bends and rises;
-- large, soft pre-rendered riders and motorcycles;
-- human posture and clothing that remain readable at low resolution;
-- two riders close enough to hit each other;
-- a visible improvised weapon;
-- traffic, guardrails, signs, and roadside objects creating danger and speed;
-- low-resolution texture and softness, not block pixel art.
+---
 
-This is not a request to copy protected assets, characters, tracks, UI, music, or trade dress. It is a
-specific production target for camera, scale, color, material, animation, and moment-to-moment play.
+## Games We Want
 
-## Emotional promise
+These are the vibes we're chasing. For each copyrighted game, we build our own equivalent that captures the same feel.
 
-You are leaning through a country-road bend at unsafe speed while another rider crowds your lane and
-raises a weapon.
+| Classic | Our Version | Core Feel |
+|---------|-------------|-----------|
+| Road Rash | TBD | Motorcycle combat racing, punch rivals, chaotic fun |
+| Burnout Legends | TBD | Arcade racing, takedowns, speed, crashes |
+| Ping Pong / Table Tennis | TBD | Simple 2-player paddle game, satisfying physics |
+| JumpStart (edu games) | TBD | Fun educational mini-games for kids |
+| *(more to come)* | | |
 
-The game must feel:
+**Important:** Our versions should look and feel like the originals — same energy, same fun — but be original IP we own.
 
-- fast because the road, scenery, engine, and traffic move, not because speed lines say so;
-- physical because riders lean, reach, recoil, and lose balance;
-- dangerous but readable;
-- mischievous and slightly mean;
-- simple enough to understand before the first bend ends.
+---
 
-## Vertical-slice loop
+## Core Principles
 
-One run lasts about 45 to 70 seconds:
+1. **Instant play** — Click and you're in the game. No loading screens, no tutorials, no sign-ups.
 
-1. Begin already rolling with a rival in sight.
-2. Accelerate into a visible bend.
-3. Pull alongside the rival within the first 8 seconds.
-4. Read the rival lifting a weapon.
-5. Strike, evade, or force the rival toward traffic.
-6. Survive several civilian vehicles and roadside hazards.
-7. Reach the checkpoint first.
-8. Restart in under one second.
+2. **Feels like the original** — If we're inspired by Road Rash, it should *feel* like Road Rash. Same chaos, same satisfaction.
 
-## Controls
+3. **Desktop-first** — These games need keyboards. Mobile can come later for games that work with touch.
 
-| Action | Keys | Required feel |
-| --- | --- | --- |
-| Accelerate | Up / W | Immediate engine load, then a slower climb |
-| Brake | Down / S | Strong enough to reposition around traffic |
-| Steer | Left/Right / A/D | Responsive with visible rider lean and curve pressure |
-| Strike left | Z | Buffered, readable arm and weapon arc |
-| Strike right | X | Buffered, readable arm and weapon arc |
-| Kick | Space | Slower, longer reach, heavy lateral shove |
-| Restart | Space / Enter | Under one second after a result |
-| Tuning overlay | Backquote | Development-only live telemetry |
+4. **No legal risk** — Everything we ship, we own. No ROMs, no ripped assets.
 
-## Playable truths
+5. **Fast and light** — No bloated frameworks. Games should load in seconds.
 
-Chain Gang is not ready unless:
+---
 
-- the supplied Road Rash frame and a game capture share the same basic composition;
-- the road visibly curves in the first 10 seconds;
-- the player and rival are large enough to read clothing, posture, bike, and weapon;
-- the player reaches combat range within 8 seconds without expert play;
-- a hit includes anticipation, contact, sound, displacement, reaction, and recovery;
-- steering against a bend feels different from steering on a straight;
-- traffic creates choices rather than random punishment;
-- Edge and Safari show the same homepage and playable canvas;
-- a first-time player voluntarily restarts.
+## Site Structure
 
-## Visual and audio target
+```
+floppy.run/
+├── Homepage
+│   └── Grid of games, click to play
+│
+├── /play/[game-slug]
+│   └── Full-screen game, minimal UI
+│
+└── That's it. Keep it simple.
+```
 
-- Internal frame: 640 × 400, presented with gentle browser smoothing.
-- Style: original pre-rendered-3D-like sprites and painted raster scenery.
-- Palette: daylight blue, pale stone, dry soil, natural green, asphalt grey, saturated rider colors.
-- Camera: low chase camera, rider fills the lower third, rival reaches comparable scale in combat.
-- Animation: 12–15fps authored pose changes over a fixed simulation.
-- Audio: layered engine load, wind, tyre texture, passing vehicles, weapon whoosh, body/bike impact,
-  and short period-style rock rhythm. Pure oscillator beeps are not acceptable as the final sound.
+---
 
-### Authored rider asset gate
+## Technical Direction
 
-The road, camera, traffic, combat timing, and audio are now implemented. The remaining visual quality
-gap cannot be solved with more primitive geometry. Final rider production requires original,
-artist-authored pre-rendered sprites:
+**Open for interpretation.** The AI engineers should decide the best approach. Some guidelines:
 
-- rear chase-camera view at 0°, ±12°, and ±24° lean;
-- ride, weapon tell, left/right swing, hit, stagger, wipeout, and recovery poses;
-- player and rival each rendered with a complete motorcycle silhouette;
-- 256×320 transparent source frames, authored at 2× and reduced with soft filtering;
-- readable shoulders, elbows, hands, hips, knees, wheels, tank, handlebars, and weapon;
-- daylight materials matching the supplied Road Rash (1994) reference;
-- no copied actor likenesses, clothing, bikes, frames, or source assets.
+- Static site (no backend needed for v1)
+- Games can be vanilla JS, Canvas, WebGL, or whatever makes sense for the game
+- Should work on modern browsers (Chrome, Firefox, Safari, Edge)
+- Hosting: Azure Static Web Apps (or equivalent static host)
+- Analytics: Something simple to track plays and engagement
 
-The game must retain the current illustrated poses until replacements pass a side-by-side human review.
-Procedural 3D and generic CC0 bike experiments were tested and rejected because they looked less real.
+---
 
-## Site presentation
+## What Success Looks Like
 
-The portal should be **minimal, with a restrained Windows XP memory**:
+- Someone lands on the site
+- They see games they recognize the vibe of
+- They click one and are playing within 2 seconds
+- They have fun and come back
 
-- Tahoma typography, Luna blue, pale system surfaces, and one green Play treatment;
-- screenshot-led game browsing with little chrome;
-- a compact title bar and simple game shelf, not a simulated desktop;
-- bevelled controls and glossy highlights used only where they help recognition;
-- no fake fictional-console lore, minimalist dashboard, pixel font, scanline, neon, or terminal aesthetic.
+---
 
-## Originality and legal boundaries
+## What We're NOT Building (v1)
 
-Chain Gang uses the general idea of motorcycle combat racing. It must not copy Road Rash names,
-characters, logos, dialogue, exact tracks, menus, HUD layouts, rider designs, music, sounds, or source
-assets.
+- User accounts
+- Leaderboards
+- Multiplayer
+- Mobile apps
+- Ads
+- Monetization
 
-Chain Gang's original world is an illegal courier race through rural service roads. Riders carry
-contraband parcels, wear brightly patched road gear, and use improvised workshop tools.
+Just games. Just fun. Ship it.
 
-## Browser and quality gates
+---
 
-- no stale service worker or cache in local development;
-- no route-focus scroll jump;
-- stable rendering and controls in current Edge, Safari, Chrome, and Firefox desktop;
-- reliable focus, pause, audio unlock, restart, and teardown;
-- deterministic tests for finish, combat, traffic collision, and seeded encounters;
-- no runtime console errors;
-- production build and smoke tests pass.
+## Game Backlog
 
-## Rendering architecture
+*To be expanded as Deji remembers more games:*
 
-- Three.js owns the primary playable road, camera, terrain, traffic, and depth.
-- Camera-facing authored rider poses preserve the soft sprite language of the 1994 reference.
-- The deterministic fixed-step model remains authoritative for controls, AI, combat, traffic, and results.
-- Canvas 2D remains a complete fallback when WebGL is unavailable.
-- The Three.js payload is lazy-loaded only after entering Chain Gang.
+1. Road Rash style — motorcycle combat racer
+2. Burnout style — arcade racer with takedowns
+3. Ping Pong — classic table tennis
+4. JumpStart style — educational mini-games
+5. *(add more here)*
 
-## Sequencing
+---
 
-1. Edge parity and cache/focus reliability.
-2. Road Rash (1994) camera, scenery, rider scale, and combat target.
-3. Handling, traffic, audio, and close-combat tuning.
-4. Late-1990s/early-2000s portal rebuild.
-5. Screenshot and playable nostalgia gate.
-6. Rally, then separate Doom/Freedoom assessment.
+## Open Questions
 
-## Success
+- What art style? Pixel art? Low-poly 3D? Stylized 2D?
+- Sound design approach?
+- How many games for launch?
+- Any specific mechanics from the originals that are must-haves?
 
-The decisive test is not whether Chain Gang technically contains racing and punching. A player who
-remembers *Road Rash (1994)* should recognize the memory within 10 seconds and choose another run.
+---
 
-*Last updated: 12 Jul 2026*
+*This doc is intentionally minimal. Let the engineers think fresh about implementation.*
+
+*Last updated: 2026-02-08*
