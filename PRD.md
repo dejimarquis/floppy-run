@@ -10,7 +10,7 @@ A retro gaming website where people can play classic-style games instantly in th
 
 ## The Problem
 
-You want to play Road Rash, Burnout, or that ping pong game you loved as a kid. But:
+You want to play Road Rash, Burnout, or that 3D-pinball game you loved as a kid. But:
 - Original ROMs are legally risky
 - Emulator setup is annoying
 - Mobile games are full of ads and IAPs
@@ -30,9 +30,7 @@ These are the vibes we're chasing. For each copyrighted game, we build our own e
 |---------|-------------|-----------|
 | Road Rash | TBD | Motorcycle combat racing, punch rivals, chaotic fun |
 | Burnout Legends | TBD | Arcade racing, takedowns, speed, crashes |
-| Ping Pong / Table Tennis | TBD | Simple 2-player paddle game, satisfying physics |
-| JumpStart (edu games) | TBD | Fun educational mini-games for kids |
-| *(more to come)* | | |
+| 3D-pinball | TBD | The classic windows xp game |
 
 **Important:** Our versions should look and feel like the originals — same energy, same fun — but be original IP we own.
 
@@ -67,18 +65,6 @@ floppy.run/
 
 ---
 
-## Technical Direction
-
-**Open for interpretation.** The AI engineers should decide the best approach. Some guidelines:
-
-- Static site (no backend needed for v1)
-- Games can be vanilla JS, Canvas, WebGL, or whatever makes sense for the game
-- Should work on modern browsers (Chrome, Firefox, Safari, Edge)
-- Hosting: Azure Static Web Apps (or equivalent static host)
-- Analytics: Something simple to track plays and engagement
-
----
-
 ## What Success Looks Like
 
 - Someone lands on the site
@@ -105,23 +91,4 @@ Just games. Just fun. Ship it.
 
 *To be expanded as Deji remembers more games:*
 
-1. Road Rash style — motorcycle combat racer
-2. Burnout style — arcade racer with takedowns
-3. Ping Pong — classic table tennis
-4. JumpStart style — educational mini-games
-5. *(add more here)*
-
 ---
-
-## Open Questions
-
-- What art style? Pixel art? Low-poly 3D? Stylized 2D?
-- Sound design approach?
-- How many games for launch?
-- Any specific mechanics from the originals that are must-haves?
-
----
-
-*This doc is intentionally minimal. Let the engineers think fresh about implementation.*
-
-*Last updated: 2026-02-08*
