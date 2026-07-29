@@ -1,0 +1,31 @@
+{
+  "name": "floppy-run",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "shot": "node tools/shot.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dejimarquis/floppy-run.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/dejimarquis/floppy-run/issues"
+  },
+  "homepage": "https://github.com/dejimarquis/floppy-run#readme",
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.0",
+    "vite": "^8.1.5"
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>floppy.run — classic games. zero friction.</title>
+    <style>
+      :root {
+        --bg: #06070b;
+        --fg: #e8ecf4;
+        --dim: #8b93a7;
+        --accent: #ff3b2f;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(1200px 700px at 50% -10%, #16203a 0%, transparent 60%),
+          radial-gradient(900px 600px at 90% 100%, #2a0f14 0%, transparent 55%),
+          var(--bg);
+      }
+      header { padding: 64px 24px 28px; text-align: center; }
+      h1 { margin: 0; font-size: clamp(38px, 7vw, 78px); letter-spacing: -0.045em; font-weight: 800; }
+      h1 span { color: var(--accent); }
+      .tag { margin-top: 10px; color: var(--dim); font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
+      main { max-width: 1160px; margin: 0 auto; padding: 24px 24px 90px;
+        display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+      a.card {
+        position: relative; display: block; text-decoration: none; color: inherit;
+        border-radius: 16px; overflow: hidden; border: 1px solid #1d2434; background: #0b0e16;
+        transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+      }
+      a.card:hover { transform: translateY(-4px); border-color: #38455f; box-shadow: 0 18px 60px rgba(0,0,0,.6); }
+      .art { aspect-ratio: 16/10; background-size: cover; background-position: center; }
+      .rr { background: linear-gradient(160deg, #ff8a3d, #b2231c 55%, #250a12); }
+      .bo { background: linear-gradient(160deg, #4fc3ff, #1638a8 55%, #06122c); }
+      .pb { background: linear-gradient(160deg, #b98cff, #3c1d86 55%, #0d0722); }
+      .meta { padding: 16px 18px 20px; }
+      .meta h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.01em; }
+      .meta p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.45; }
+      footer { text-align: center; color: #565f75; font-size: 13px; padding-bottom: 40px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>floppy<span>.</span>run</h1>
+      <div class="tag">Classic games. Zero friction.</div>
+    </header>
+    <main>
+      <a class="card" href="/play/road-rash/">
+        <div class="art rr"></div>
+        <div class="meta">
+          <h2>Asphalt Fury</h2>
+          <p>Motorcycle combat racing. Punch, kick, and chain-whip rivals off the road at 180mph.</p>
+        </div>
+      </a>
+      <a class="card" href="/play/burnout/">
+        <div class="art bo"></div>
+        <div class="meta">
+          <h2>Crashout</h2>
+          <p>Arcade racing built on takedowns. Boost, drift, slam rivals into concrete, watch it fold.</p>
+        </div>
+      </a>
+      <a class="card" href="/play/pinball/">
+        <div class="art pb"></div>
+        <div class="meta">
+          <h2>Space Cadet: Nova</h2>
+          <p>A full 3D pinball table. Ramps, bumpers, multiball, and a physics ball that feels real.</p>
+        </div>
+      </a>
+    </main>
+    <footer>Original games. No ROMs. No sign-ups.</footer>
+  </body>
+</html>
