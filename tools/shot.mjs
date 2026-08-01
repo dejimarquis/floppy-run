@@ -69,9 +69,12 @@ if (!ready) console.error('! window.__READY__ never became true (continuing anyw
 
 await page.waitForTimeout(wait);
 
-// dismiss any start overlay + focus canvas
-await page.mouse.click(w / 2, h / 2).catch(() => {});
-await page.waitForTimeout(400);
+// Dismiss any start overlay + focus canvas. Skip with --noclick on pages
+// where a centre click is a navigation (e.g. the homepage card grid).
+if (args.noclick !== 'true') {
+  await page.mouse.click(w / 2, h / 2).catch(() => {});
+  await page.waitForTimeout(400);
+}
 
 for (const k of keys) {
   const [key, mode] = k.split(':');

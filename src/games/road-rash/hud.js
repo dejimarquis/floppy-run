@@ -55,8 +55,14 @@ const CSS = `
 .af-pos .rank{font-size:15px;font-weight:800;letter-spacing:.1em;padding:6px 14px;background:rgba(8,11,16,.6);
   border:1px solid rgba(255,255,255,.12);border-top:2px solid #19e0c8;backdrop-filter:blur(8px)}
 
-.af-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;font-size:10px;letter-spacing:.16em;
-  white-space:nowrap;text-transform:uppercase;color:rgba(255,255,255,.40);font-weight:600;transition:opacity .8s ease}
+/* Permanent control legend. The title card used to be the ONLY place the
+   combat keys were shown and it self-dismissed after 1.6s, so punching --
+   the entire point of the game -- was undiscoverable. */
+.af-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;font-size:12px;letter-spacing:.12em;
+  white-space:nowrap;text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:600;transition:opacity .8s ease;
+  padding:6px 14px;border-radius:6px;background:rgba(8,11,16,.45);backdrop-filter:blur(6px);
+  text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.af-hint b{color:#ffc24d;font-weight:800}
 .af-hint.hide{opacity:0}
 
 .af-title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -108,9 +114,10 @@ export class HUD {
       <div class="af-title" id="af-title">
         <h1>ASPHALT<br>FURY</h1>
         <h2>Canyon Circuit &nbsp;·&nbsp; Six Riders &nbsp;·&nbsp; No Rules</h2>
-        <div class="keys"><span><b>↑↓←→</b> ride</span><span><b>A / D</b> punch</span><span><b>S</b> kick</span><span><b>SHIFT</b> nitro</span></div>
+        <div class="keys"><span><b>↑↓←→ / WASD</b> ride</span><span><b>Q / E</b> punch</span><span><b>F</b> kick</span><span><b>SHIFT</b> nitro</span></div>
         <div class="cta">Press any key to ride</div>
       </div>
+      <div class="af-hint" id="af-hint"><b>↑↓←→ / WASD</b> ride &nbsp;·&nbsp; <b>Q / E</b> punch &nbsp;·&nbsp; <b>F</b> kick &nbsp;·&nbsp; <b>SHIFT</b> nitro</div>
     `;
     container.appendChild(root);
     this.root = root;

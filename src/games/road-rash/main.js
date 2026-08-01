@@ -485,7 +485,8 @@ function onKey(e, down) {
   if (down) {
     keys.add(k);
     firstGesture();
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'x', 'Shift', ' '].includes(k)) userTookControl = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'x',
+         'q', 'e', 'f', 'j', 'k', 'l', 'Shift', ' '].includes(k)) userTookControl = true;
     if (k === 'c') cycleCamera();
     if (k === 'p') (paused ? api.resume : api.pause)();
     if (k === 'm') audio.setMuted(!audio.muted);
@@ -1144,13 +1145,18 @@ function readInput(dt) {
     return;
   }
   p.input.throttle = keys.has('ArrowUp') || keys.has('w') ? 1 : 0;
-  p.input.brake = keys.has('ArrowDown') || keys.has('x') ? 1 : 0;
-  p.input.steer = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+  p.input.brake = keys.has('ArrowDown') || keys.has('s') || keys.has('x') ? 1 : 0;
+  // WASD must steer. Previously 'w' accelerated while 'a'/'d' punched, so
+  // anyone who assumed WASD held W+A, punched the air, and concluded the bike
+  // could not steer at all. Attacks moved to dedicated keys.
+  p.input.steer =
+    (keys.has('ArrowRight') || keys.has('d') ? 1 : 0) -
+    (keys.has('ArrowLeft') || keys.has('a') ? 1 : 0);
   p.input.boost = keys.has('Shift');
   if (p.punchCooldown <= 0) {
-    if (keys.has('a')) attack(p, nearestTarget(-1), -1);
-    else if (keys.has('d')) attack(p, nearestTarget(1), 1);
-    else if (keys.has('s')) {
+    if (keys.has('q') || keys.has('j')) attack(p, nearestTarget(-1), -1);
+    else if (keys.has('e') || keys.has('l')) attack(p, nearestTarget(1), 1);
+    else if (keys.has('f') || keys.has('k')) {
       p.bike.kick();
       p.punchCooldown = 0.5;
       const side = p.x > 0 ? -1 : 1;
