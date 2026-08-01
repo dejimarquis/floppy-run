@@ -22,7 +22,7 @@ import { Scheduler } from './scheduler.js';
 import { seed as setSeed, random } from './rng.js';
 import { Q, setTier } from './quality.js';
 import { makeBallProbe } from './art.js';
-import { mergeStatics, flattenToBasic, bakeFlatColors, coalesceGroups, collectLive, census } from './optimize.js';
+import { mergeStatics, flattenToBasic, bakeFlatColors, coalesceGroups, collectLive, census, normaliseMaterials } from './optimize.js';
 
 const qs = new URLSearchParams(location.search);
 
@@ -49,7 +49,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 const BASE_EXPOSURE = 1.34;
 renderer.toneMappingExposure = BASE_EXPOSURE;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// PCFSoftShadowMap is deprecated in three r185 and is silently swapped for
+// PCFShadowMap on the FIRST shadow render — i.e. after renderer.compile() has
+// already baked shadowMapType=2 into every program. That invalidated the whole
+// precompiled set and made the renderer build all ~45 scene programs a second
+// time. Ask for what we are actually going to get.
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.info.autoReset = false;
 app.appendChild(renderer.domElement);
 
@@ -221,6 +226,19 @@ const liveObjects = collectLive(table, {
 const groupReport = coalesceGroups(table.group);
 const mergeReport = mergeStatics(table.group, liveObjects);
 mergeReport.groups = groupReport;
+// Collapse shader-program variants that buy nothing at this art direction.
+// The ball and the playfield plastic keep their clearcoat; everything else
+// pays for a second specular lobe nobody can see.
+// `?norm=0` / `?pad=0` / `?sheen=1` exist purely so this pass can be A/B'd
+// against a pixel diff -- see the note on normaliseMaterials().
+mergeReport.mats =
+  qs.get('norm') === '0'
+    ? null
+    : normaliseMaterials(scene, {
+        ccMin: 0.35,
+        pad: qs.get('pad') !== '0',
+        dropSheen: qs.get('sheen') !== '1',
+      });
 if (qs.get('opt')) {
   const owners = {};
   for (const o of liveObjects) {
@@ -801,7 +819,15 @@ function step(now) {
 }
 
 cam.update(0.016, null, []);
+// Precompile in *exactly* the configuration the frame loop uses. A program's
+// cache key includes outputColorSpace and toneMapping, and both of those are
+// derived from whether a render target is bound. Compiling against the default
+// framebuffer (sRGB + ACES) produces a program set the postfx path can never
+// use, so every one of them gets compiled again on frame 1 — double the
+// programs, double the boot stall, for no benefit.
+renderer.setRenderTarget(post.sceneRT);
 renderer.compile(scene, camera);
+renderer.setRenderTarget(null);
 mark('compile');
 
 renderer.setAnimationLoop(step);
