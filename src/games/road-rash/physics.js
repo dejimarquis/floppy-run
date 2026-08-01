@@ -52,6 +52,8 @@ export class Racer {
     this.stagger = 0;
     this.weapon = opts.weapon ?? null;
     this.wobble = 0;
+    this.railCooldown = 0;
+    this.railBang = 0;
     this.input = { throttle: 0, brake: 0, steer: 0, boost: false };
     this.maxSpeed = opts.maxSpeed ?? 79;
     this.power = opts.power ?? 1;
@@ -105,31 +107,46 @@ export class Racer {
 
     // ---- lateral ----
     const sm = t.sample(this.s, this._sm);
-    const speedF = clamp(this.v / 40, 0.25, 1);
-    const steerAuthority = lerp(11.5, 6.2, clamp(this.v / this.maxSpeed, 0, 1)) * (1 - this.offroad * 0.35);
-    this.steer = damp(this.steer, clamp(inp.steer, -1, 1), 12, dt);
+    // Arcade steering: two serial low-pass filters used to stack up to ~1s of
+    // mush. Both rates are now high enough that the bike answers the key in a
+    // couple of frames while still reading as a lean rather than a teleport.
+    const speedF = clamp(this.v / 34, 0.45, 1);
+    const steerAuthority = lerp(13.5, 9.8, clamp(this.v / this.maxSpeed, 0, 1)) * (1 - this.offroad * 0.35);
+    this.steer = damp(this.steer, clamp(inp.steer, -1, 1), 30, dt);
     const centri = -sm.curv * this.v * this.v * 0.019;
     const bankHelp = sm.bank * this.v * 0.30;
-    this.vx = damp(this.vx, this.steer * steerAuthority * speedF + centri + bankHelp, 7, dt);
+    // Gentle auto-centring once you are off the carriageway: keeps a kid who
+    // holds one direction pinned against the rail instead of buried in it.
+    const edge = clamp((Math.abs(this.x) - (HW - 0.2)) / 2.2, 0, 1);
+    const recenter = -Math.sign(this.x || 1) * edge * edge * 6.5;
+    this.vx = damp(this.vx, this.steer * steerAuthority * speedF + centri + bankHelp + recenter, 18, dt);
     if (this.wobble > 0) {
       this.vx += Math.sin(performance.now() * 0.021) * this.wobble * 7;
       this.wobble = Math.max(0, this.wobble - dt * 0.7);
     }
     this.x += this.vx * dt;
 
-    // guardrail
+    // guardrail — scrub-and-bounce, not a health drain. Continuous scraping is
+    // an arcade staple; it should cost speed and look loud, never kill you.
+    if (this.railCooldown > 0) this.railCooldown -= dt;
     const lim = HW + 2.1;
     if (Math.abs(this.x) > lim) {
-      const over = Math.abs(this.x) - lim;
       this.x = Math.sign(this.x) * lim;
       const impactSpeed = Math.abs(this.vx);
-      this.vx = -this.vx * 0.28;
-      this.v *= 1 - clamp(impactSpeed * 0.02, 0, 0.25);
+      this.vx = -Math.sign(this.x) * Math.max(3.2, impactSpeed * 0.42);
+      this.v *= 1 - clamp(impactSpeed * 0.012, 0, 0.14);
       this.railHit = clamp(impactSpeed / 9, 0, 1);
-      this.health -= this.railHit * 0.045;
-      if (this.railHit > 0.72 && this.v > 26) this.crash('rail');
-      void over;
-    } else this.railHit = 0;
+      // One damage tick per contact event, not per frame.
+      if (this.railCooldown <= 0) {
+        this.railCooldown = 1.1;
+        this.health -= clamp(this.railHit, 0, 1) * 0.035;
+        this.railBang = this.railHit;
+      } else this.railBang = 0;
+    } else {
+      this.railHit = 0;
+      this.railBang = 0;
+    }
+    this.health = clamp(this.health, 0, 1);
 
     // ---- vertical / jumps ----
     const crest = t.crest(this.s);
@@ -188,7 +205,7 @@ export class Racer {
 
     // ---- recovery ----
     this.stamina = clamp(this.stamina + dt * 0.13, 0, 1);
-    this.health = clamp(this.health + dt * 0.012, 0, 1);
+    this.health = clamp(this.health + dt * 0.03, 0, 1);
     if (this.punchCooldown > 0) this.punchCooldown -= dt;
     if (this.stagger > 0) this.stagger = Math.max(0, this.stagger - dt * 1.6);
 

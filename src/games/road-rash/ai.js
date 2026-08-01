@@ -234,14 +234,12 @@ export class TrafficSystem {
     this.max = opts.max ?? 9;
     this.active = [];
     this.sets = {};
-    const paintMat = new THREE.MeshPhysicalMaterial({
+    const paintMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.28,
-      metalness: 0.35,
-      clearcoat: 1,
-      clearcoatRoughness: 0.06,
+      roughness: 0.18,
+      metalness: 0.45,
       vertexColors: false,
-      envMapIntensity: 1.2,
+      envMapIntensity: 1.5,
     });
     for (const kind of ['car', 'truck']) {
       const geo = buildCarGeoms(kind);

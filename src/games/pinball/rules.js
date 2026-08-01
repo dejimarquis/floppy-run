@@ -7,6 +7,15 @@
  */
 
 import * as THREE from 'three';
+
+const WARM = new THREE.Color(0xffd06a);
+const ORANGE = new THREE.Color(0xffa53c);
+const MB_COLS = [new THREE.Color(0xffffff), new THREE.Color(0x35e6ff), new THREE.Color(0xff3c8f)];
+const BUMPER_COLS = [
+  new THREE.Color(0x35e6ff),
+  new THREE.Color(0xff3c8f),
+  new THREE.Color(0xffd23c),
+];
 import { L } from './layout.js';
 import { V } from './table.js';
 import { random } from './rng.js';
@@ -86,7 +95,17 @@ export class Rules {
     const total = Math.round(n * this.multiplier * (1 + this.combo * 0.25));
     this.score += total;
     if (x != null) {
-      this.g.vfx.scorePop(x, y, color || new THREE.Color(0xffd06a));
+      const c = color || WARM;
+      this.g.vfx.scorePop(x, y, c);
+      // Anything worth 25k gets a big number; the small stuff would carpet the
+      // screen and stop meaning anything.
+      this.g.popScore(
+        total.toLocaleString('en-US'),
+        x,
+        y,
+        '#' + c.getHexString(),
+        total >= 25000
+      );
     }
     while (this.rankIdx < RANKS.length - 1 && this.score >= RANKS[this.rankIdx + 1].at) {
       this.rankIdx++;
@@ -217,11 +236,13 @@ export class Rules {
       const b = g.table.parts.bumpers.find((x) => x.id === tag);
       if (b) b.level = 1;
       g.audio.bumper(Math.min(1, impact / 3));
-      g.vfx.burst(ev.x, ev.y, new THREE.Color(0x8fd8ff), 16, 0.9, 0.03);
-      g.cam.addShake(0.05);
-      this.addScore(1100 + (this.multiball ? 900 : 0));
+      const bc = BUMPER_COLS[(b ? b.idx || 0 : 0) % BUMPER_COLS.length];
+      g.vfx.burst(ev.x, ev.y, bc, 30, 1.5, 0.03);
+      g.vfx.shockwave(ev.x, ev.y, bc, 0.075, 0.30, 0.028);
+      g.cam.addShake(0.22 + Math.min(0.2, impact * 0.05));
+      this.addScore(1100 + (this.multiball ? 900 : 0), ev.x, ev.y, bc);
       this.bonus += 300;
-      g.flash(0.05);
+      g.flash(0.22);
       return;
     }
     if (tag === 'slingL' || tag === 'slingR') {
@@ -229,8 +250,11 @@ export class Rules {
       s.flash.level = 1;
       s.level = 1;
       g.audio.sling();
-      g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xffb060), 8, 1.1);
-      this.addScore(520);
+      g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, ORANGE, 18, 1.5);
+      g.vfx.shockwave(ev.x, ev.y, ORANGE, 0.055, 0.26, 0.02);
+      g.cam.addShake(0.16);
+      g.flash(0.14);
+      this.addScore(520, ev.x, ev.y, ORANGE);
       this.bonus += 120;
       return;
     }
@@ -261,7 +285,10 @@ export class Rules {
       const s = g.table.parts.standups.find((x) => x.id === tag);
       if (s) s.hit = 1;
       g.audio.clack(1.4);
-      g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xffe08a), 7, 0.9);
+      g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xffe08a), 16, 1.3);
+      g.vfx.shockwave(ev.x, ev.y, new THREE.Color(0xffe08a), 0.05, 0.24, 0.024);
+      g.cam.addShake(0.13);
+      g.flash(0.12);
       this.addScore(3200, ev.x, ev.y);
       this.bonus += 700;
       if (this.mode === 'NAV') this.modeHit(ev);
@@ -486,9 +513,19 @@ export class Rules {
     g.hud.banner('MULTIBALL', 2.2);
     g.audio.knocker();
     g.audio.setMusic(1);
-    g.vfx.lightShow(140);
-    g.cam.addShake(0.6);
-    g.flash(0.35);
+    g.vfx.lightShow(200);
+    g.cam.addShake(1.0);
+    g.flash(0.75);
+    // three staggered concentric waves off the middle of the playfield reads
+    // as an explosion rather than a single pop
+    for (let i = 0; i < 3; i++) {
+      g.sched.after(i * 0.13, () => {
+        g.vfx.shockwave(0, 0.42, MB_COLS[i], 0.20 + i * 0.09, 0.52, 0.03);
+        g.vfx.burst(0, 0.42, MB_COLS[i], 46, 3.0, 0.05);
+        g.cam.addShake(0.5);
+        g.flash(0.3);
+      }, `mb-boom-${i}`);
+    }
     // release two more balls from the trough into play
     for (let i = 0; i < 2; i++) {
       g.sched.after(0.34 + i * 0.42, () => {
@@ -518,10 +555,12 @@ export class Rules {
     g.dmd.show({ anim: 'jackpot', l2: v.toLocaleString('en-US'), dur: 1.7, prio: true });
     g.hud.banner('JACKPOT', 1.4);
     g.audio.jackpot();
-    g.vfx.lightShow(90);
-    g.vfx.burst(ball.x, ball.y, new THREE.Color(0xffd06a), 40, 1.7, 0.03);
-    g.cam.addShake(0.4);
-    g.flash(0.3);
+    g.vfx.lightShow(120);
+    g.vfx.burst(ball.x, ball.y, WARM, 64, 2.6, 0.03);
+    g.vfx.shockwave(ball.x, ball.y, WARM, 0.34, 0.5, 0.03);
+    g.sched.after(0.1, () => g.vfx.shockwave(ball.x, ball.y, new THREE.Color(0xffffff), 0.22, 0.4, 0.03), 'jp-ring2');
+    g.cam.addShake(0.8);
+    g.flash(0.55);
   }
 
   maybeStartMode(key) {

@@ -213,8 +213,7 @@ export class Materials {
     this.rail = new THREE.MeshStandardMaterial({
       map: T.rail.map,
       normalMap: T.rail.normalMap,
-      roughnessMap: T.rail.roughnessMap,
-      roughness: 1.0,
+      roughness: 0.62,
       metalness: 0.34,
       envMapIntensity: E * 0.3,
     });
@@ -272,22 +271,23 @@ export class Materials {
       envMapIntensity: E * 0.25,
     });
 
+    // map + normalMap only: sharing the exact map-slot set with the guardrail
+    // means both share one compiled program instead of forcing two.
     this.concrete = new THREE.MeshStandardMaterial({
       map: T.concrete.map,
       normalMap: T.concrete.normalMap,
-      roughnessMap: T.concrete.roughnessMap,
-      roughness: 1.0,
+      roughness: 0.92,
       metalness: 0.0,
       envMapIntensity: E * 0.55,
     });
 
     // ---- rubber / plastic -------------------------------------------------
+    // No normalMap: a tyre is a black blur at racing speed, and the extra map
+    // slot is a whole extra shader permutation for detail nobody sees.
     this.rubber = new THREE.MeshStandardMaterial({
       color: 0x0e0f11,
       roughness: 0.88,
       metalness: 0.0,
-      normalMap: T.tireNormal,
-      normalScale: new THREE.Vector2(1.4, 1.4),
       envMapIntensity: E * 0.45,
     });
     this.rubberSmooth = new THREE.MeshStandardMaterial({
@@ -304,43 +304,35 @@ export class Materials {
     });
 
     // ---- rider ------------------------------------------------------------
-    this.leather = new THREE.MeshPhysicalMaterial({
+    // Standard, not Physical. Clearcoat and sheen are reserved for the hero
+    // bike paint: every additional lobe is another shader permutation, and
+    // each permutation is a compile stall at boot.
+    this.leather = new THREE.MeshStandardMaterial({
       color: 0x1b1d22,
       map: T.leather.map,
       normalMap: T.leather.normalMap,
-      roughness: 0.52,
+      roughness: 0.42,
       metalness: 0.0,
-      sheen: 0.85,
-      sheenRoughness: 0.42,
-      sheenColor: new THREE.Color(0x9fb6d8),
-      clearcoat: 0.28,
-      clearcoatRoughness: 0.4,
-      envMapIntensity: E * 0.9,
+      envMapIntensity: E * 1.2,
     });
     this.skin = new THREE.MeshStandardMaterial({ color: 0x8a5f45, roughness: 0.7, envMapIntensity: E * 0.6 });
 
-    this.visor = new THREE.MeshPhysicalMaterial({
+    this.visor = new THREE.MeshStandardMaterial({
       color: 0x101318,
-      roughness: 0.06,
-      metalness: 0.0,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.03,
-      envMapIntensity: E * 1.6,
-      iridescence: 0.0,
-      transmission: 0.0,
+      roughness: 0.05,
+      metalness: 0.35,
+      envMapIntensity: E * 2.0,
       side: THREE.DoubleSide,
     });
 
-    this.glass = new THREE.MeshPhysicalMaterial({
+    this.glass = new THREE.MeshStandardMaterial({
       color: 0x8fa6bd,
       roughness: 0.05,
-      metalness: 0.0,
-      transmission: 0.0,
+      metalness: 0.2,
       opacity: 0.20,
       transparent: true,
       depthWrite: false,
-      clearcoat: 1.0,
-      envMapIntensity: E * 0.75,
+      envMapIntensity: E * 1.1,
       side: THREE.DoubleSide,
     });
 
@@ -431,11 +423,13 @@ export class Materials {
     // origin so trunks stay planted. Phase is derived from the instance's own
     // world position so no two trees are in sync.
     this.wind = { value: 0 };
-    const applyWind = (mat, sway, flutter, hRef, key) => {
+    const applyWind = (mat, sway, flutter, hRef) => {
+      mat.userData.windParams = new THREE.Vector3(sway, flutter, hRef);
       mat.onBeforeCompile = (shader) => {
         shader.uniforms.uWind = this.wind;
+        shader.uniforms.uWindParams = { value: mat.userData.windParams };
         shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', '#include <common>\n uniform float uWind;')
+          .replace('#include <common>', '#include <common>\n uniform float uWind;\n uniform vec3 uWindParams;')
           .replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
@@ -445,22 +439,25 @@ export class Materials {
                vec3 wOrigin = vec3( 0.0 );
              #endif
              float wPhase = wOrigin.x * 0.21 + wOrigin.z * 0.17;
-             float wH = clamp( transformed.y / ${hRef.toFixed(2)}, 0.0, 1.6 );
+             float wH = clamp( transformed.y / uWindParams.z, 0.0, 1.6 );
              float gust = 0.62 + 0.38 * sin( uWind * 0.23 + wPhase * 0.11 );
-             float bough = sin( uWind * 1.05 + wPhase ) * ${sway.toFixed(3)};
-             float leaf  = sin( uWind * 3.7 + wPhase * 2.3 + transformed.y * 0.9 ) * ${flutter.toFixed(3)};
+             float bough = sin( uWind * 1.05 + wPhase ) * uWindParams.x;
+             float leaf  = sin( uWind * 3.7 + wPhase * 2.3 + transformed.y * 0.9 ) * uWindParams.y;
              float amp = ( bough + leaf ) * wH * wH * gust;
              transformed.x += amp;
              transformed.z += amp * 0.55;
              transformed.y -= abs( amp ) * 0.18;`
           );
       };
-      mat.customProgramCacheKey = () => key;
+      // One cache key for every wind material: the per-species sway/flutter
+      // constants are uniforms now, so four foliage materials share a single
+      // compiled program instead of forcing four.
+      mat.customProgramCacheKey = () => 'af-wind';
     };
-    applyWind(this.canopy, 0.34, 0.09, 9.0, 'af-canopy');
-    applyWind(this.canopyLeaf, 0.46, 0.14, 8.0, 'af-canopyleaf');
-    applyWind(this.grass, 0.16, 0.07, 1.0, 'af-grass');
-    applyWind(this.foliage, 0.2, 0.08, 1.4, 'af-foliage');
+    applyWind(this.canopy, 0.34, 0.09, 9.0);
+    applyWind(this.canopyLeaf, 0.46, 0.14, 8.0);
+    applyWind(this.grass, 0.16, 0.07, 1.0);
+    applyWind(this.foliage, 0.2, 0.08, 1.4);
 
     this.lightCone = new THREE.MeshBasicMaterial({
       color: 0xffdca8,
@@ -487,7 +484,6 @@ export class Materials {
         map: T.signs[k],
         roughness: 0.42,
         metalness: 0.1,
-        transparent: true,
         alphaTest: 0.35,
         side: THREE.DoubleSide,
         envMapIntensity: E * 1.2,

@@ -34,19 +34,19 @@ const DT_MAX_STEPS = 60;
 const DT_STEP_CAP = 0.02;
 const DT_HITCH_CAP = 1.0;   // beyond this we assume a stall, not a slow frame
 
-const EXPOSURE = 0.86;
+const EXPOSURE = 0.17;
 const SKY_INTENSITY = 1.0;
 
 const TIERS = {
   low: {
     tier: 'low', pixelRatio: 1.0, shadows: true, shadowMap: 1024, msaa: 0, smaa: false,
-    bloomStrength: 0.42, bloomRadius: 0.34, bloomThreshold: 3.2, rain: 260,
+    bloomStrength: 0.62, bloomRadius: 0.34, bloomThreshold: 1.02, rain: 260,
     particleScale: 0.55, beams: false, aniso: 8, traffic: 12, rivals: 3, buildings: 0.5,
     envSize: 256, soft: true,
   },
   med: {
     tier: 'med', pixelRatio: 1.0, shadows: true, shadowMap: 1024, msaa: 0, smaa: true,
-    bloomStrength: 0.48, bloomRadius: 0.36, bloomThreshold: 3.0, rain: 700,
+    bloomStrength: 0.66, bloomRadius: 0.36, bloomThreshold: 0.96, rain: 700,
     particleScale: 0.55, beams: true, aniso: 8, traffic: 20, rivals: 4, buildings: 0.75, envSize: 256,
   },
   high: {
@@ -54,13 +54,13 @@ const TIERS = {
     // reach first frame fast. It keeps the look of ultra and drops the costs
     // that only show up in a pixel peep: shadow resolution and rain density.
     tier: 'high', pixelRatio: 1.0, shadows: true, shadowMap: 1024, msaa: 0, smaa: true,
-    bloomStrength: 0.54, bloomRadius: 0.38, bloomThreshold: 2.8, rain: 820,
+    bloomStrength: 0.70, bloomRadius: 0.38, bloomThreshold: 0.90, rain: 820,
     particleScale: 0.80, beams: true, aniso: 8, traffic: 22, rivals: 5, buildings: 0.85, envSize: 256,
   },
   ultra: {
     tier: 'ultra', pixelRatio: Math.min(window.devicePixelRatio || 1, 2), shadows: true,
-    shadowMap: 2048, msaa: 4, smaa: true, bloomStrength: 0.60, bloomRadius: 0.40,
-    bloomThreshold: 2.6, rain: 2400, particleScale: 1.0, beams: true, aniso: 16,
+    shadowMap: 2048, msaa: 4, smaa: true, bloomStrength: 0.74, bloomRadius: 0.40,
+    bloomThreshold: 0.86, rain: 2400, particleScale: 1.0, beams: true, aniso: 16,
     traffic: 30, rivals: 5, buildings: 1, envSize: 512,
   },
 };
@@ -157,12 +157,16 @@ class Game {
     this.idleTimer = 0;
     this.muted = false;
 
+    performance.mark('rendererStart');
     this.initRenderer();
+    performance.mark('rendererEnd');
     const _t = () => performance.now();
     const t0 = _t();
     this.initScene();
+    performance.mark('sceneEnd');
     const t1 = _t();
     this.initGameObjects();
+    performance.mark('objectsEnd');
     const t2 = _t();
     this.initInput();
     this.initAPI();
@@ -180,8 +184,11 @@ class Game {
     this.renderer.setPixelRatio(q.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = EXPOSURE;
+    // Tone mapping is done once, in the post composite. Leaving ACES on the
+    // renderer put `toneMapping` into every material's program cache key, so
+    // each `toneMapped:false` material compiled a second copy of its shader.
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = q.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.info.autoReset = false;
@@ -255,7 +262,7 @@ class Game {
     cubeCam.update(this.renderer, skyScene);
     this.skyCube = cubeRT;
     this.scene.background = cubeRT.texture;
-    this.scene.backgroundIntensity = SKY_INTENSITY * 0.30;
+    this.scene.backgroundIntensity = SKY_INTENSITY * 1.05;
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const envRT = pmrem.fromCubemap(cubeRT.texture);
@@ -298,31 +305,50 @@ class Game {
     // car paint always reads, without lifting the whole scene
     this.heroLight = new THREE.PointLight(0xffe7cc, 4.0, 16, 2.0);
     this.scene.add(this.heroLight);
-    // cinematic rim used only by the crash camera
-    this.rimLight = new THREE.PointLight(0x9ec8ff, 60, 30, 2.0);
-    this.rimLight.visible = false;
+    // cinematic rim used only by the crash camera. Kept permanently in the
+    // scene at zero intensity: toggling `visible` on a light changes the
+    // scene's light counts, and three.js then recompiles every material in the
+    // scene. That was multiplying the shader program count several times over.
+    this.rimLight = new THREE.PointLight(0x9ec8ff, 0, 30, 2.0);
+    this.rimLight.visible = true;
     this.scene.add(this.rimLight);
+
+    // Fixed pool of wreck-fire lights. Same reason: a light added on demand
+    // during a crash forces a full recompile at the worst possible moment.
+    this.wreckLights = [];
+    for (let i = 0; i < 2; i++) {
+      const wl = new THREE.PointLight(0xff8a34, 0, 26, 2);
+      wl.visible = true;
+      this.scene.add(wl);
+      this.wreckLights.push({ light: wl, owner: null, age: 1e9 });
+    }
   }
 
   initGameObjects() {
     const q = this.quality;
     this.track = new Track(this.seedValue);
+    performance.mark('trackEnd');
     this.world = new World(this.scene, this.track, { quality: q, rng: new RNG(this.seedValue ^ 0x9e37), renderer: this.renderer });
+    performance.mark('worldEnd');
     if (this.world.setEnvironment) this.world.setEnvironment(this.envMap);
     this.vfx = new VFX(this.scene, q);
     if (this.vfx.setEnvironment) this.vfx.setEnvironment(this.envMap);
+    performance.mark('vfxEnd');
     this.audio = new Audio();
     this.hud = new HUD(this.root);
     this.hud.setTrack(this.track);
 
+    performance.mark('hudEnd');
     this.traffic = new Traffic(this, q.traffic);
     this.traffic.setEnvironment(this.envMap);
+    performance.mark('trafficEnd');
 
     this.player = new Car(this, {
       isPlayer: true, style: 'super', color: 0xd7142a, name: 'YOU',
     });
     this.player.id = 'P';
     this.player.setEnvironment(this.envMap);
+    performance.mark('playerEnd');
     this.cars = [this.player];
     this.ais = [];
     this.attractAI = new RacerAI(this.player, this, { aggression: 0.34, skill: 0.99 });
@@ -340,6 +366,7 @@ class Game {
       this.ais.push(ai);
     }
 
+    performance.mark('rivalsEnd');
     this.resetRace();
     this.post = new PostFX(this.renderer, this.scene, this.camera, q);
 
@@ -596,6 +623,34 @@ class Game {
   }
 
   hitStop(d) { this.hitStopT = Math.max(this.hitStopT, d); }
+
+  /**
+   * Hand a wrecked car one of the fixed pool of fire lights. Freshest wreck
+   * wins; everything else burns unlit rather than growing the scene's light
+   * count (which would recompile every material in the game).
+   */
+  claimWreckLight(car, age) {
+    const pool = this.wreckLights;
+    if (!pool) return null;
+    let free = null;
+    for (const slot of pool) {
+      if (slot.owner === car) { slot.age = age; return slot.light; }
+      if (!slot.owner) free = free || slot;
+    }
+    if (free) { free.owner = car; free.age = age; return free.light; }
+    // steal the stalest slot if this wreck is newer
+    let worst = pool[0];
+    for (const slot of pool) if (slot.age > worst.age) worst = slot;
+    if (age < worst.age - 0.5) { worst.owner = car; worst.age = age; return worst.light; }
+    return null;
+  }
+
+  releaseWreckLight(car) {
+    if (!this.wreckLights) return;
+    for (const slot of this.wreckLights) {
+      if (slot.owner === car) { slot.owner = null; slot.age = 1e9; slot.light.intensity = 0; }
+    }
+  }
 
   // Screen-space impact shockwave (see postfx GradeShader uShock).
   shockAt(p, strength = 0.6) {
@@ -1179,13 +1234,14 @@ class Game {
       }
     }
     if (this.rimLight) {
-      this.rimLight.visible = cine;
       if (cine) {
         _v2.copy(this.camera.position).sub(heroTarget).normalize();
         this.rimLight.position.copy(heroTarget).addScaledVector(_v2, -7.5);
         this.rimLight.position.y += 5.0;
         this.rimLight.distance = 34;
         this.rimLight.intensity = 26;
+      } else {
+        this.rimLight.intensity = 0;
       }
     }
     const inTun = this.world.inTunnel ? this.world.inTunnel(this.player.veh.trackS) : false;
@@ -1315,7 +1371,7 @@ class Game {
       u.uShock.value = (1 - k) * (_proj.z < 1 ? 1 : 0);
     } else u.uShock.value = 0;
     this.post.bloom.strength = q.bloomStrength * (1 + u.uBoost.value * 0.45 + u.uCrash.value * 0.10);
-    this.renderer.toneMappingExposure = EXPOSURE * (1 + u.uBoost.value * 0.09);
+    u.uExposure.value = EXPOSURE * (1 + u.uBoost.value * 0.09);
 
     const blips = this.cars.map((c) => ({
       x: c.veh.body.pos.x, z: c.veh.body.pos.z, me: c === p, rival: c !== p,
@@ -1362,7 +1418,9 @@ const _hp = new THREE.Vector3();
 
 // ------------------------------------------------------------------- boot
 const root = document.getElementById('app') || document.body;
+performance.mark('gameStart');
 const game = new Game(root);
+performance.mark('gameEnd');
 game._groundFn = (x, z) => {
   const s = game.track.surface(x, z, game.player.veh.hint);
   return s ? s.y : 0;
@@ -1440,7 +1498,14 @@ let firstFrame = true;
 // Compile all shader programs up front. Three.js otherwise compiles lazily on
 // first render of each material, stuttering once per new object type entering
 // view -- a major cause of the "lag" felt during the opening seconds.
+// The bind matters: program cache keys carry the output colour space, and the
+// game only ever renders the scene into the HDR post target, so compiling with
+// the canvas bound would have produced a throwaway program for every material.
+performance.mark('compileStart');
+game.renderer.setRenderTarget(game.post.sceneRT);
 game.renderer.compile(game.scene, game.camera);
+game.renderer.setRenderTarget(null);
+performance.mark('compileEnd');
 // Refresh shadows on a cadence rather than every frame.
 game.renderer.shadowMap.autoUpdate = false;
 game.renderer.shadowMap.needsUpdate = true;
@@ -1467,6 +1532,7 @@ function loop() {
   }
   if (firstFrame) {
     firstFrame = false;
+    performance.mark('firstFrameEnd');
     requestAnimationFrame(() => { window.__READY__ = true; });
   }
   requestAnimationFrame(loop);

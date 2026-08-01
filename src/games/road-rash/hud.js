@@ -6,30 +6,30 @@ const CSS = `
   color:#fff;-webkit-font-smoothing:antialiased;z-index:10;user-select:none;overflow:hidden}
 .af-root *{box-sizing:border-box}
 .af-tl{position:absolute;left:26px;top:22px;display:flex;gap:14px;align-items:flex-start}
-.af-panel{background:linear-gradient(160deg,rgba(10,13,18,.78),rgba(8,10,14,.55));
-  border:1px solid rgba(255,255,255,.10);border-left:2px solid #ff5a1f;
-  backdrop-filter:blur(9px) saturate(1.2);padding:9px 15px 10px 13px;
+.af-panel{background:linear-gradient(160deg,rgba(10,13,18,.80),rgba(8,10,14,.58));
+  border:1px solid rgba(255,255,255,.12);border-left:4px solid #ff5a1f;
+  backdrop-filter:blur(9px) saturate(1.2);padding:10px 19px 12px 15px;
   clip-path:polygon(0 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%);
   box-shadow:0 10px 34px rgba(0,0,0,.5)}
-.af-label{font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(255,255,255,.48);font-weight:700;margin-bottom:1px}
-.af-big{font-size:32px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.af-big small{font-size:14px;font-weight:700;opacity:.55;margin-left:2px}
+.af-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.48);font-weight:700;margin-bottom:1px}
+.af-big{font-size:46px;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.af-big small{font-size:19px;font-weight:800;opacity:.6;margin-left:2px}
 .af-accent{color:#ff8a3d}
-.af-time{font-variant-numeric:tabular-nums;font-size:26px;font-weight:700;letter-spacing:.01em}
+.af-time{font-variant-numeric:tabular-nums;font-size:36px;font-weight:900;letter-spacing:-.01em}
 
 .af-tr{position:absolute;right:24px;top:22px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .af-map{width:172px;height:172px;background:linear-gradient(160deg,rgba(9,12,17,.72),rgba(7,9,13,.5));
   border:1px solid rgba(255,255,255,.10);border-radius:3px;backdrop-filter:blur(9px);box-shadow:0 10px 30px rgba(0,0,0,.45)}
 
-.af-bl{position:absolute;left:26px;bottom:26px;width:300px;display:flex;flex-direction:column;gap:9px}
-.af-bar{height:11px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.13);position:relative;overflow:hidden;
+.af-bl{position:absolute;left:26px;bottom:26px;width:360px;display:flex;flex-direction:column;gap:9px}
+.af-bar{height:15px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.13);position:relative;overflow:hidden;
   clip-path:polygon(0 0,100% 0,100% 100%,7px 100%,0 calc(100% - 6px))}
 .af-bar i{position:absolute;left:0;top:0;bottom:0;display:block;transition:width .12s linear}
 .af-bar.health i{background:linear-gradient(90deg,#ff3b2f,#ff9f43)}
 .af-bar.boost i{background:linear-gradient(90deg,#18d6c0,#8affea)}
 .af-bar.stam i{background:linear-gradient(90deg,#4a9dff,#a9d4ff)}
 .af-barrow{display:flex;align-items:center;gap:10px}
-.af-barrow .af-label{margin:0;width:56px;flex:none}
+.af-barrow .af-label{margin:0;width:70px;flex:none}
 .af-barwrap{flex:1}
 
 .af-br{position:absolute;right:20px;bottom:14px}
@@ -39,10 +39,10 @@ const CSS = `
   letter-spacing:.18em;font-size:11px;text-transform:uppercase;color:#ffb07a}
 
 .af-callout{position:absolute;left:50%;top:31%;transform:translateX(-50%);text-align:center;opacity:0}
-.af-callout .k{font-size:64px;font-weight:900;letter-spacing:-.03em;line-height:.95;
+.af-callout .k{font-size:104px;font-weight:900;letter-spacing:-.045em;line-height:.92;-webkit-text-stroke:0;
   background:linear-gradient(180deg,#fff 10%,#ffb057 62%,#ff5a1f 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 6px 24px rgba(255,90,31,.55))}
-.af-callout .s{font-size:14px;font-weight:800;letter-spacing:.34em;text-transform:uppercase;color:#fff;margin-top:6px;
+  filter:drop-shadow(0 6px 26px rgba(255,90,31,.85)) drop-shadow(0 0 8px rgba(0,0,0,.7))}
+.af-callout .s{font-size:18px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;color:#fff;margin-top:6px;
   text-shadow:0 2px 10px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.95)}
 @keyframes afPop{0%{opacity:0;transform:translateX(-50%) scale(.72) rotate(-3deg)}
   14%{opacity:1;transform:translateX(-50%) scale(1.1) rotate(1.5deg)}
@@ -184,12 +184,12 @@ export class HUD {
     }
     this._calloutT = t + dt;
     let op, sc, rot, dy;
-    if (n < 0.08) {
-      const k = n / 0.08;
-      op = k; sc = 0.72 + 0.38 * k; rot = -3 + 4.5 * k; dy = 0;
-    } else if (n < 0.16) {
-      const k = (n - 0.08) / 0.08;
-      op = 1; sc = 1.1 - 0.1 * k; rot = 1.5 - 1.5 * k; dy = 0;
+    if (n < 0.06) {
+      const k = n / 0.06;
+      op = k; sc = 0.45 + 0.85 * k; rot = -7 + 10 * k; dy = 0;
+    } else if (n < 0.18) {
+      const k = (n - 0.06) / 0.12;
+      op = 1; sc = 1.30 - 0.30 * k; rot = 3 - 3 * k; dy = 0;
     } else if (n < 0.88) {
       op = 1; sc = 1; rot = 0; dy = 0;
     } else {

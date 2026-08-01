@@ -531,13 +531,15 @@ export function createBike(mats, opts = {}) {
 
   const paintMat = mats.paint(paintColor);
   const paint2Mat = mats.paint(opts.paint2 ?? 0x14161b, { roughness: 0.34, clearcoat: 0.85, env: 0.95 });
-  const accentMat = new THREE.MeshPhysicalMaterial({
+  // Standard, not Physical: clearcoat is reserved for the hero paint. Every
+  // extra clearcoat/sheen material is another shader program to compile at
+  // boot, and at arcade speed nobody reads a second specular lobe on a trim
+  // panel. The gloss is faked with roughness + env intensity instead.
+  const accentMat = new THREE.MeshStandardMaterial({
     color: accentColor,
-    roughness: 0.36,
-    metalness: 0.25,
-    clearcoat: 0.85,
-    clearcoatRoughness: 0.18,
-    envMapIntensity: 0.85,
+    roughness: 0.24,
+    metalness: 0.35,
+    envMapIntensity: 1.15,
   });
 
   const group = new THREE.Group();
@@ -1214,18 +1216,13 @@ export function createBike(mats, opts = {}) {
   }
 
   // ------------------------------------------------------------ rider
-  const leatherMat = new THREE.MeshPhysicalMaterial({
+  const leatherMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(leatherColor),
     map: mats.T.leather.map,
     normalMap: mats.T.leather.normalMap,
-    roughness: 0.58,
+    roughness: 0.46,
     metalness: 0.0,
-    sheen: 0.45,
-    sheenRoughness: 0.55,
-    sheenColor: new THREE.Color(0x8a9cb4),
-    clearcoat: 0.22,
-    clearcoatRoughness: 0.42,
-    envMapIntensity: 0.55,
+    envMapIntensity: 0.85,
   });
   const helmetMat = mats.paint(opts.helmet ?? paintColor, { roughness: 0.42, clearcoat: 0.55, env: 0.20 });
 
@@ -1275,16 +1272,11 @@ export function createBike(mats, opts = {}) {
     for (const sx of [-1, 1]) {
       yokeGeos.push(joint([sx * 0.205, 0.352, -0.02], 0.078, 1.0, 0.95, 1.05));
     }
-    const yokeMat = new THREE.MeshPhysicalMaterial({
+    const yokeMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(opts.suit ?? opts.stripe ?? paintColor),
-      roughness: 0.48,
+      roughness: 0.38,
       metalness: 0.0,
-      sheen: 0.7,
-      sheenRoughness: 0.45,
-      sheenColor: new THREE.Color(0x9fb0c8),
-      clearcoat: 0.4,
-      clearcoatRoughness: 0.35,
-      envMapIntensity: 0.5,
+      envMapIntensity: 0.85,
     });
     const ym = new THREE.Mesh(rounded(yokeGeos), yokeMat);
     ym.castShadow = true;
@@ -1299,13 +1291,11 @@ export function createBike(mats, opts = {}) {
     const belt = new THREE.BoxGeometry(0.30, 0.06, 0.235);
     belt.translate(0, 0.115, 0.0);
     trimGeos.push(belt);
-    const trimMat = new THREE.MeshPhysicalMaterial({
+    const trimMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(opts.trim ?? 0xe6e9ee),
-      roughness: 0.45,
+      roughness: 0.36,
       metalness: 0.0,
-      sheen: 0.6,
-      sheenRoughness: 0.4,
-      envMapIntensity: 0.35,
+      envMapIntensity: 0.7,
     });
     const tm2 = new THREE.Mesh(rounded(trimGeos), trimMat);
     tm2.castShadow = true;
@@ -1400,16 +1390,12 @@ export function createBike(mats, opts = {}) {
   // elbow joint - the whole chain is posed as a unit) so nothing is lost by
   // baking it into a single buffer. Albedo contrast is what makes a thrown
   // punch read, and albedo is exactly what a vertex colour can carry.
-  const limbMat = new THREE.MeshPhysicalMaterial({
+  const limbMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     vertexColors: true,
-    roughness: 0.52,
+    roughness: 0.42,
     metalness: 0.0,
-    sheen: 0.5,
-    sheenRoughness: 0.42,
-    clearcoat: 0.22,
-    clearcoatRoughness: 0.5,
-    envMapIntensity: 0.38,
+    envMapIntensity: 0.7,
   });
   const tintGeo = (g, hex) => {
     const c = new THREE.Color(hex);

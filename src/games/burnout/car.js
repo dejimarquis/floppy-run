@@ -280,10 +280,17 @@ export class Car {
       this.inner.add(fmesh);
       this.flames.push(fmesh);
     }
-    this.boostLight = new THREE.PointLight(0xff7a24, 0, 12, 2);
-    this.boostLight.position.set(0, S.ride + 0.14, -meta.sil.halfLen - 0.5);
-    this.boostLight.visible = false;
-    this.inner.add(this.boostLight);
+    // Only the hero carries a real boost light. Every light that can appear or
+    // disappear changes the scene's light counts, and three.js recompiles EVERY
+    // material in the scene when that happens -- that alone was multiplying the
+    // program count by 3-4x during play. This one is permanent and idles at
+    // zero intensity.
+    if (this.isPlayer) {
+      this.boostLight = new THREE.PointLight(0xff7a24, 0, 14, 2);
+      this.boostLight.position.set(0, S.ride + 0.14, -meta.sil.halfLen - 0.5);
+      this.boostLight.visible = true;
+      this.inner.add(this.boostLight);
+    }
     // grille
     const grille = new THREE.Mesh(new THREE.BoxGeometry(S.width * 0.55, 0.16, 0.08), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.5, metalness: 0.7 }));
     grille.position.set(0, S.nose * 0.72, hl * 0.985);
@@ -647,7 +654,7 @@ export class Car {
   }
 
   repair() {
-    if (this.wreckLight) this.wreckLight.intensity = 0;
+    if (this.game.releaseWreckLight) this.game.releaseWreckLight(this);
     for (let i = 0; i < 4; i++) this.wheelDetached[i] = false;
     this.detached.length = 0;
     this.deformer.reset();
@@ -752,7 +759,6 @@ export class Car {
     this.lampGlow.instanceMatrix.needsUpdate = true;
     this.lampGlow.instanceColor.needsUpdate = true;
 
-    if (this.spot) this.spot.visible = !this.wrecked;
     // detail LOD: trim, interior, exhausts and grille are sub-pixel past ~55 m,
     // so drop four draw calls per distant car.
     if (this.detailMeshes) {
@@ -812,15 +818,16 @@ export class Car {
     if (this.wrecked) {
       const age = this.game.time - this.wreckTime;
       _v.copy(b.pos).addScaledVector(veh.up, 0.5);
-      // A burning wreck has to light itself, otherwise a night takedown is a
-      // black slab on a black road no matter how good the particles are.
-      if (!this.wreckLight) {
-        this.wreckLight = new THREE.PointLight(0xff8a34, 0, 22, 2);
-        this.game.scene.add(this.wreckLight);
+      // A burning wreck has to light itself, otherwise a takedown is a dark
+      // slab on a dark road no matter how good the particles are. The light is
+      // borrowed from a fixed game-wide pool: adding one per wreck changed the
+      // scene light count and forced a full material recompile mid-crash.
+      const wl = this.game.claimWreckLight(this, age);
+      if (wl) {
+        wl.position.copy(b.pos); wl.position.y += 0.9;
+        const flick = 0.72 + Math.sin(this.game.time * 27.3) * 0.16 + Math.sin(this.game.time * 11.1) * 0.12;
+        wl.intensity = (age < 4.5 ? 260 : 90) * flick;
       }
-      this.wreckLight.position.copy(b.pos); this.wreckLight.position.y += 0.9;
-      const flick = 0.72 + Math.sin(this.game.time * 27.3) * 0.16 + Math.sin(this.game.time * 11.1) * 0.12;
-      this.wreckLight.intensity = (age < 4.5 ? 190 : 70) * flick;
       if (age < 4.5) {
         this.game.vfx.fireBurst(_v, emit(34), 0.95);
         this.game.vfx.smokePuff(_v, emit(20), b.vel, 1.7, 0.10, 2.6);
@@ -841,6 +848,8 @@ export class Car {
     }
 
     if (this.spot) {
+      // intensity, never `visible`: hiding a light changes the scene light
+      // counts and forces three.js to recompile every material.
       this.spot.intensity = this.wrecked ? 0 : (this.game.world.inTunnel(veh.trackS) ? 170 : 26);
     }
 
@@ -859,8 +868,7 @@ export class Car {
         f.material.opacity = 0.55 + k * 0.45;
       }
       if (this.boostLight) {
-        this.boostLight.intensity = k * 46;
-        this.boostLight.visible = on;
+        this.boostLight.intensity = k * 90;
       }
     }
 

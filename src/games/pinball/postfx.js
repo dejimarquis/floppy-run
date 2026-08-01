@@ -198,7 +198,10 @@ export class PostFX {
     // MSAA on a CPU rasteriser multiplies the whole scene pass by the sample
     // count; SMAA already runs on every tier, so software GL takes the
     // post-process route only.
-    const msaa = !Q.softwareGL && (Q.tier === 'ultra' || Q.tier === 'high') ? 4 : 0;
+    // SMAA runs on every tier. Stacking 4x MSAA on top of it multiplies the
+    // whole half-float scene pass by four for an edge quality nobody can see
+    // past the bloom. One of them is enough, and SMAA is the cheap one.
+    const msaa = 0;
     const mk = (ww, hh, samples = 0, depth = false) => {
       const rt = new THREE.WebGLRenderTarget(Math.max(2, ww), Math.max(2, hh), {
         type: THREE.HalfFloatType,

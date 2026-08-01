@@ -8,6 +8,9 @@ import { V } from './table.js';
 import { random } from './rng.js';
 
 const MAX_P = 900;
+const RING_N = 16;
+const BLACK = new THREE.Color(0, 0, 0);
+const TMPC = new THREE.Color();
 
 export class VFX {
   constructor(parent, env) {
@@ -81,6 +84,97 @@ export class VFX {
     g3.fillStyle = lg;
     g3.fillRect(0, 0, 64, 8);
     this.trailTex = new THREE.CanvasTexture(tc);
+
+    /* ---- shockwave rings -------------------------------------------
+     * The single most readable "you hit that" signal there is: a hard bright
+     * ring that snaps outward from the impact point in ~250ms. Sixteen of
+     * them live in one InstancedMesh, so the whole system is one draw call
+     * whether nothing is happening or the table is being pounded.
+     * ---------------------------------------------------------------- */
+    const rc = document.createElement('canvas');
+    rc.width = rc.height = 128;
+    const g4 = rc.getContext('2d');
+    const rg2 = g4.createRadialGradient(64, 64, 0, 64, 64, 64);
+    rg2.addColorStop(0.00, 'rgba(255,255,255,0)');
+    rg2.addColorStop(0.62, 'rgba(255,255,255,0)');
+    rg2.addColorStop(0.80, 'rgba(255,255,255,1)');
+    rg2.addColorStop(0.92, 'rgba(255,255,255,0.45)');
+    rg2.addColorStop(1.00, 'rgba(255,255,255,0)');
+    g4.fillStyle = rg2;
+    g4.fillRect(0, 0, 128, 128);
+    this.ringTex = new THREE.CanvasTexture(rc);
+
+    const ringGeo = new THREE.PlaneGeometry(1, 1);
+    ringGeo.rotateX(-Math.PI / 2);
+    this.rings = new THREE.InstancedMesh(
+      ringGeo,
+      new THREE.MeshBasicMaterial({
+        map: this.ringTex,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+      RING_N
+    );
+    this.rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.rings.frustumCulled = false;
+    this.rings.renderOrder = 8;
+    this.rings.count = RING_N;
+    this.ringState = [];
+    for (let i = 0; i < RING_N; i++) this.ringState.push({ t: 0, dur: 1, x: 0, y: 0, z: 0, r0: 0, r1: 1, c: new THREE.Color() });
+    this.ringHead = 0;
+    this._m4 = new THREE.Matrix4();
+    this.group.add(this.rings);
+    this._hideRings();
+  }
+
+  _hideRings() {
+    const m = this._m4.makeScale(0, 0, 0);
+    for (let i = 0; i < RING_N; i++) {
+      this.rings.setMatrixAt(i, m);
+      this.rings.setColorAt(i, BLACK);
+    }
+    this.rings.instanceMatrix.needsUpdate = true;
+    if (this.rings.instanceColor) this.rings.instanceColor.needsUpdate = true;
+  }
+
+  /** Snap a bright ring outward from (x,y). This is the hit confirmation. */
+  shockwave(x, y, color, r1 = 0.09, dur = 0.34, z = 0.006) {
+    const s = this.ringState[this.ringHead++ % RING_N];
+    s.t = 0;
+    s.dur = dur;
+    s.x = x;
+    s.y = y;
+    s.z = z;
+    s.r0 = r1 * 0.16;
+    s.r1 = r1;
+    s.c.set(color);
+  }
+
+  _updateRings(dt) {
+    let live = false;
+    for (let i = 0; i < RING_N; i++) {
+      const s = this.ringState[i];
+      if (s.t >= s.dur) {
+        this.rings.setMatrixAt(i, this._m4.makeScale(0, 0, 0));
+        continue;
+      }
+      s.t += dt;
+      live = true;
+      const f = Math.min(1, s.t / s.dur);
+      // fast out, hard stop: ease-out cubic reads as an impact, linear does not
+      const e = 1 - (1 - f) ** 3;
+      const r = s.r0 + (s.r1 - s.r0) * e;
+      const a = (1 - f) ** 1.6;
+      this._m4.makeScale(r * 2, 1, r * 2);
+      this._m4.setPosition(s.x, s.z, -s.y);
+      this.rings.setMatrixAt(i, this._m4);
+      TMPC.copy(s.c).multiplyScalar(a * 2.4);
+      this.rings.setColorAt(i, TMPC);
+    }
+    this.rings.instanceMatrix.needsUpdate = true;
+    if (this.rings.instanceColor) this.rings.instanceColor.needsUpdate = true;
+    return live;
   }
 
   spawn(x, y, z, opts) {
@@ -175,6 +269,7 @@ export class VFX {
   }
 
   update(dt) {
+    this._updateRings(dt);
     const pos = this.pGeo.attributes.position.array;
     const col = this.pGeo.attributes.aColor.array;
     const siz = this.pGeo.attributes.aSize.array;
@@ -284,7 +379,7 @@ export class BallView {
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
-        color: 0x9fc4ff,
+        color: 0xbfe4ff,
         opacity: 0.0,
         side: THREE.DoubleSide,
       })
@@ -324,17 +419,18 @@ export class BallView {
     // size: at the wide 3/4 framing the ball is only a handful of pixels
     // across, and without this the hero object simply disappears.
     if (camera) {
-      this.hot.material.opacity = 0.74 + Math.min(0.40, sp * 0.05);
+      this.hot.material.opacity = 0.9 + Math.min(0.75, sp * 0.09);
       const d = camera.position.distanceTo(this.group.position);
-      this.hot.scale.setScalar(Math.max(this.r * 0.9, d * 0.0165));
+      this.hot.scale.setScalar(Math.max(this.r * 1.05, d * 0.019));
     }
 
     // trail
     this.hist.unshift([p.x, p.y, p.z]);
     if (this.hist.length > TRAIL_N) this.hist.length = TRAIL_N;
     const speed = ball.rail ? Math.abs(ball.railV || 0) : sp;
-    const vis = Math.max(0, Math.min(1, (speed - 1.2) / 3.4));
-    this.trail.material.opacity = vis * 0.75;
+    // The ball is the hero object, so the streak starts early and reads hard.
+    const vis = Math.max(0, Math.min(1, (speed - 0.55) / 2.4));
+    this.trail.material.opacity = vis * 1.0;
     if (vis > 0.01 && this.hist.length > 2) {
       const arr = this.trailPos;
       for (let i = 0; i < TRAIL_N; i++) {
@@ -345,7 +441,7 @@ export class BallView {
         const l = Math.hypot(dx, dz) || 1;
         const nx = -dz / l;
         const nz = dx / l;
-        const w = this.r * 0.85 * (1 - i / TRAIL_N);
+        const w = this.r * (0.7 + vis * 0.95) * (1 - i / TRAIL_N);
         arr[i * 6] = h[0] + nx * w;
         arr[i * 6 + 1] = h[1];
         arr[i * 6 + 2] = h[2] + nz * w;

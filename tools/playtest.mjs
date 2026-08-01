@@ -131,8 +131,8 @@ for (const g of GAMES) {
   // ---- shader precompile: programs must exist before play, not compile during
   const programs = await page
     .evaluate(() => {
-      const s = window.__SCENE__ || window.__CRASHOUT__ || {};
-      const r = s.renderer;
+      const s = window.__SCENE__ || window.__CRASHOUT__ || window.__PERF__ || {};
+      const r = s.renderer || (window.__GAME__ && window.__GAME__.renderer);
       return r && r.info && r.info.programs ? r.info.programs.length : null;
     })
     .catch(() => null);

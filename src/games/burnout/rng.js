@@ -116,8 +116,9 @@ export function ridged(x, y, octaves = 4, period = 0) {
 
 /** Tileable worley / cellular noise -> distance to nearest feature point (0..1). */
 export function worley(x, y, cells = 8, seed = 17) {
-  const r = mulberry32(seed);
-  // cheap deterministic hash instead of storing a point grid
+  // NOTE: this used to allocate a mulberry32 closure per call and then throw it
+  // away. At 2048x2048 that was four million closures per texture and it
+  // dominated boot time.
   const hash = (i, j) => {
     let h = (i * 374761393 + j * 668265263 + seed * 2246822519) >>> 0;
     h = (h ^ (h >>> 13)) >>> 0;
@@ -140,7 +141,6 @@ export function worley(x, y, cells = 8, seed = 17) {
       if (d < best) { best2 = best; best = d; } else if (d < best2) best2 = d;
     }
   }
-  void r;
   return { f1: Math.sqrt(best), f2: Math.sqrt(best2) };
 }
 

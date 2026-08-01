@@ -22,6 +22,7 @@ import { Scheduler } from './scheduler.js';
 import { seed as setSeed, random } from './rng.js';
 import { Q, setTier } from './quality.js';
 import { makeBallProbe } from './art.js';
+import { mergeStatics, flattenToBasic, bakeFlatColors, coalesceGroups, collectLive, census } from './optimize.js';
 
 const qs = new URLSearchParams(location.search);
 
@@ -90,157 +91,105 @@ const T0 = performance.now();
 const MARKS = [];
 const mark = (n) => {
   MARKS.push([n, Math.round(performance.now() - T0)]);
+  window.__MARKS__ = MARKS;
   if (qs.get('t')) console.log('[t]', n, Math.round(performance.now() - T0));
 };
 const env = buildEnvironment(renderer);
 mark('env');
 scene.environment = env;
 const backdrop = buildBackdrop();
-// The room lives on its own layer. The key/top/rim rig is sized to blast a
-// 60cm playfield, and any directional strong enough to do that also floods a
-// 50m carpet to mid-grey - which is what turned the arcade into a fog bank.
-// Off layer 0 the room is lit purely by the dark IBL plus its own emissive
-// marquees, neon and floor pools, which is exactly how an arcade reads.
+// The room is set dressing and nothing else. It used to be lit by its own
+// six-light rig on a private layer -- except three.js does not mask lights per
+// object, so those six lights were being evaluated by every fragment of the
+// playfield too. It is now unlit (MeshBasic) and merged down to a handful of
+// draw calls: same silhouette, zero shading cost, six fewer lights.
 const ROOM_LAYER = 2;
 const room = new THREE.Group();
-room.add(backdrop, buildFloor(env), buildNeighbours(env), buildRoomDressing(env));
+room.name = 'room';
+room.add(buildFloor(env), buildNeighbours(env), buildRoomDressing(env));
+flattenToBasic(room);
+coalesceGroups(room);
+bakeFlatColors(room);
+mergeStatics(room, new Set());
+room.add(backdrop);
 room.traverse((o) => o.layers.set(ROOM_LAYER));
 scene.add(room);
 camera.layers.enable(ROOM_LAYER);
 
-// A dedicated rig for the room only. Layer-gated so it cannot touch the
-// playfield: the walls need soft, wide, low-intensity fill with real falloff
-// from the modelled ceiling troughs, and the table needs the opposite.
-const roomAmb = new THREE.HemisphereLight(0x8fb0ff, 0x1a1430, 1.20);
-roomAmb.layers.set(ROOM_LAYER);
-scene.add(roomAmb);
-const roomKey = new THREE.DirectionalLight(0xbcd2ff, 0.58);
-roomKey.position.set(2.2, 3.4, 1.6);
-roomKey.layers.set(ROOM_LAYER);
-scene.add(roomKey);
-if (Q.practicalLights) {
-  for (const [px, pz, col, inten] of [
-    [-3.4, -3.1, 0xffc98a, 5.2],
-    [1.9, -3.1, 0xffc98a, 5.2],
-    [-6.4, -4.4, 0xff5fc8, 2.4],
-    [0.0, -6.6, 0x66d0ff, 3.0],
-  ]) {
-    const pl = new THREE.PointLight(col, inten, 6.2, 2);
-    pl.position.set(px, 1.18, pz);
-    pl.layers.set(ROOM_LAYER);
-    scene.add(pl);
-  }
-}
-
 const M = createMaterials(renderer, env);
 mark('materials');
 
-/* ---- lighting ---- */
-const key = new THREE.DirectionalLight(0xfff2e2, 0.88);
+/* ---- lighting ------------------------------------------------------
+ * SIX lights. That is the entire rig, and it is deliberate.
+ *
+ * three.js evaluates every light in the scene in every fragment of every
+ * material, and compiles a separate program per light-count. The previous rig
+ * ran 38. Every lamp, flasher, insert and GI bulb that used to be a real
+ * PointLight is now an emissive material driven through bloom -- which on a
+ * stylised table looks *better* (it glows the object itself, not a grey
+ * hemisphere around it) and costs nothing.
+ * ------------------------------------------------------------------ */
+
+const shadowRes = Q.softwareGL ? 640 : ({ low: 512, med: 1024, high: 1024, ultra: 1536 }[quality] || 1024);
+
+// 1. KEY — the only shadow caster. Hard, warm, up-table, so the ball and the
+//    flippers drop a crisp readable shadow onto the art.
+const key = new THREE.DirectionalLight(0xfff4e6, 1.55);
 key.position.set(-1.55, 3.05, -1.95);
 key.target.position.set(0, 0, -0.55);
 key.castShadow = true;
-const shadowRes = Q.softwareGL ? 640 : ({ low: 1024, med: 1024, high: 2048, ultra: 2048 }[quality] || 1024);
 key.shadow.mapSize.set(shadowRes, shadowRes);
-key.shadow.camera.left = -0.78;
-key.shadow.camera.right = 0.78;
-key.shadow.camera.top = 1.35;
-key.shadow.camera.bottom = -1.35;
-key.shadow.camera.near = 0.4;
-key.shadow.camera.far = 5.4;
+key.shadow.camera.left = -0.5;
+key.shadow.camera.right = 0.5;
+key.shadow.camera.top = 1.1;
+key.shadow.camera.bottom = -1.1;
+key.shadow.camera.near = 1.2;
+key.shadow.camera.far = 5.0;
 key.shadow.bias = -0.0006;
 key.shadow.normalBias = 0.0025;
-key.shadow.radius = 2.6;
+key.shadow.radius = 2.2;
 scene.add(key);
 scene.add(key.target);
 
-const rim = new THREE.DirectionalLight(0x6fa8ff, 0.20);
-rim.position.set(-1.4, 1.0, -1.6);
+// 2. COOL RIM from behind the backbox — separates ramps and wireforms from the
+//    playfield art. Saturated blue against the warm key: instant contrast.
+const rim = new THREE.DirectionalLight(0x4aa8ff, 0.62);
+rim.position.set(-1.2, 1.5, -2.6);
+rim.target.position.set(0, 0, -0.4);
 scene.add(rim);
+scene.add(rim.target);
 
-// separation rim from behind the backbox so ramps and wireforms read as
-// silhouettes against the playfield art instead of melting into it
-// kicker from camera-left so the near cabinet face never goes to pure black
-const sideKick = new THREE.DirectionalLight(0x9db4ff, 0.20);
-sideKick.position.set(-2.4, 0.55, 1.7);
-sideKick.target.position.set(0, -0.2, -0.3);
+// 3. PLAYER-SIDE KICK — keeps the near cabinet face and the flippers off black.
+const sideKick = new THREE.DirectionalLight(0xff7ad0, 0.34);
+sideKick.position.set(-2.0, 0.7, 1.9);
+sideKick.target.position.set(0, -0.1, -0.2);
 scene.add(sideKick);
 scene.add(sideKick.target);
 
-const backRim = new THREE.DirectionalLight(0x7fb4ff, 0.16);
-backRim.position.set(-0.8, 1.4, -2.6);
-backRim.target.position.set(0, 0, -0.4);
-scene.add(backRim);
-scene.add(backRim.target);
-
-// warm bounce card at floor level so the legs and cabinet base catch light
-const bounce = new THREE.PointLight(0xffb478, 0.34, 3.6, 2);
-bounce.position.set(0, -0.85, 0.55);
-if (Q.practicalLights) scene.add(bounce);
-
-// Ambient must stay low: every unit of unshadowed fill directly cancels
-// the key's shadows, and a shadowless playfield reads as a flat decal.
-const fill = new THREE.HemisphereLight(0xa8c8ff, 0x2a1c40, 0.13);
+// 4. AMBIENT — low. Every unit of unshadowed fill cancels the key's shadows.
+const fill = new THREE.HemisphereLight(0x9ec8ff, 0x2a1440, 0.42);
 scene.add(fill);
 
-// The playfield's own overhead light — mounted high and up-table, the way a
-// real machine is lit from the backbox hood. It casts, so every plastic,
-// post, ramp and the ball drop a crisp shadow down-table onto the art. This
-// second shadow caster is what makes the board read as a manufactured object
-// rather than a printed mousepad.
-const topFill = new THREE.DirectionalLight(0xdfe8ff, 0.36);
-topFill.position.set(0.20, 2.35, -2.10);
-topFill.target.position.set(0.02, 0, -0.52);
-topFill.castShadow = true;
-topFill.shadow.mapSize.set(shadowRes, shadowRes);
-topFill.shadow.camera.left = -0.40;
-topFill.shadow.camera.right = 0.40;
-topFill.shadow.camera.top = 0.78;
-topFill.shadow.camera.bottom = -0.78;
-topFill.shadow.camera.near = 1.2;
-topFill.shadow.camera.far = 4.2;
-topFill.shadow.bias = -0.00035;
-topFill.shadow.normalBias = 0.0016;
-topFill.shadow.radius = 2.2;
-scene.add(topFill);
-scene.add(topFill.target);
-
-// dedicated lift on the lower playfield (flippers / launch pad). A grazing
-// directional keeps the clearcoat lobe off-camera so nothing blows out.
-const lowerFill = new THREE.DirectionalLight(0x9fbdff, 0.16);
-lowerFill.position.set(-1.05, 0.95, 0.62);
-lowerFill.target.position.set(0.02, 0.02, -0.30);
-scene.add(lowerFill);
-scene.add(lowerFill.target);
-
-// The machine's own hood light. Range-limited so it dies before it reaches
-// the carpet: the playfield has to be the brightest surface in frame, and a
-// scene-wide directional bright enough to do that also floods the room grey.
-const pfSpot = new THREE.SpotLight(0xeaf2ff, 1.05, 3.10, 0.70, 0.72, 1.0);
+// 5. HOOD SPOT — the machine's own light, range-limited so the playfield is
+//    always the brightest thing in frame. This is what makes the table pop out
+//    of the dark room.
+const pfSpot = new THREE.SpotLight(0xf2f7ff, 2.30, 3.10, 0.74, 0.66, 1.0);
 pfSpot.position.set(0.10, 1.46, -0.52);
 pfSpot.target.position.set(0.02, 0, -0.56);
 scene.add(pfSpot);
 scene.add(pfSpot.target);
 
-const playerGlow = new THREE.PointLight(0xffb877, 0.55, 3.2, 2);
-playerGlow.position.set(0, 0.5, 1.1);
-if (Q.tier !== 'low' && Q.practicalLights) scene.add(playerGlow);
+// 6. LOWER-TABLE SPOT — the flippers are where the player's eyes actually
+//    live, and the key light rakes from up-table, so without this the whole
+//    business end of the table sits in shadow. Tight range, no shadow map.
+const lowSpot = new THREE.SpotLight(0xffe6cc, 1.85, 1.45, 0.92, 0.78, 1.0);
+lowSpot.position.set(0.0, 0.78, 0.20);
+lowSpot.target.position.set(0.0, 0, -0.18);
+scene.add(lowSpot);
+scene.add(lowSpot.target);
 
-// general-illumination wash: the bulbs under the plastics that make a real
-// machine glow. Two warm, two cool, spread along the table.
+// A pulse channel the show system drives. Not a light -- exposure + bloom.
 const giLights = [];
-const GI_DEFS = [
-  [-0.20, -0.31, 0xff5fa8, 0.34],
-  [0.17, -0.24, 0x4fd8ff, 0.34],
-  [-0.16, -0.74, 0xffc59a, 0.30],
-  [0.14, -0.98, 0x9ec4ff, 0.28],
-];
-for (const [gx, gz, col, inten] of GI_DEFS.slice(0, Q.sceneGI)) {
-  const pl = new THREE.PointLight(col, inten, 0.5, 2);
-  pl.position.set(gx, 0.11, gz);
-  giLights.push(pl);
-  scene.add(pl);
-}
 
 /* ------------------------------------------------------------------ */
 /* world + table                                                       */
@@ -254,38 +203,80 @@ const table = new Table(renderer, M, env, quality).build(world, dmd);
 mark('table');
 scene.add(table.group);
 
+/* ---- static-geometry fold -------------------------------------------
+ * The table is authored as ~430 separate meshes. Everything the game never
+ * touches again -- posts, screws, rails, lane guides, brackets, plastics,
+ * cabinet, legs -- collapses into one mesh per material here. The objects
+ * `table` still holds a reference to (lamps, targets, flippers, bumpers,
+ * ramps, the ball) are detected automatically and left alone.
+ * -------------------------------------------------------------------- */
+// Containers the game holds a handle to but never animates: their contents
+// are ordinary static furniture and must be allowed into the merge.
+const staticContainers = new Set(
+  ['cabinet', 'backbox', 'apron', 'giWash'].map((k) => table.parts[k]).filter(Boolean)
+);
+const liveObjects = collectLive(table, {
+  skip: new Set([table.group, table.playfieldGroup, ...staticContainers]),
+});
+const groupReport = coalesceGroups(table.group);
+const mergeReport = mergeStatics(table.group, liveObjects);
+mergeReport.groups = groupReport;
+if (qs.get('opt')) {
+  const owners = {};
+  for (const o of liveObjects) {
+    let n = 0;
+    o.traverse((x) => { if (x.isMesh) n++; });
+    if (n) owners[o.name || o.type + '#' + o.id] = n;
+  }
+  mergeReport.owners = owners;
+}
+
+/* ---- shadow casters -------------------------------------------------
+ * 155 casters meant a second full-geometry pass over the whole machine every
+ * frame. Only the objects a player can actually track need to drop a shadow:
+ * the ball, the flippers, and the few tall things it passes under. The rest
+ * is painted into the playfield art.
+ * -------------------------------------------------------------------- */
+let casters = 0;
+table.group.traverse((o) => {
+  if (o.isMesh) o.castShadow = false;
+});
+for (const p of [table.parts.flipL, table.parts.flipR, table.parts.flipU]) {
+  if (!p || !p.g) continue;
+  // bat + rubber only; the bushing, hub and acorn nut are 4mm details whose
+  // shadows nobody will ever see and which each cost a full extra pass entry
+  let n = 0;
+  p.g.traverse((o) => {
+    if (o.isMesh && n < 2) { o.castShadow = true; casters++; n++; }
+  });
+}
+
 const vfx = new VFX(table.playfieldGroup, env);
 const hud = new HUD(document.body);
 const cam = new CameraRig(camera, table);
 const audio = new Audio();
 const sched = new Scheduler();
 
-/* ---- hero ball: live cube reflection ---- */
-let ballEnvRT = null;
-let cubeCam = null;
+/* ---- hero ball ------------------------------------------------------
+ * A live CubeCamera meant six extra full-scene renders every 0.28s -- ~25ms
+ * of the frame, and the single biggest draw-call spike in the profile. A
+ * baked studio probe reflects a bright rim and a hot key from every angle,
+ * which is what actually makes a mirror ball read as fast-moving steel. The
+ * live version reflected a dark room, i.e. almost nothing.
+ * ------------------------------------------------------------------- */
 const ballMat = M.chrome.clone();
-// dedicated studio probe: the room PMREM is far too dark to make a mirror
-// sphere read, and the hero ball must always look like polished steel.
 const ballProbe = new THREE.CanvasTexture(makeBallProbe(Q.tier === 'low' ? 256 : 512));
 ballProbe.mapping = THREE.EquirectangularReflectionMapping;
 ballProbe.colorSpace = THREE.SRGBColorSpace;
 ballMat.envMap = ballProbe;
-ballMat.envMapIntensity = 2.15;
-ballMat.color = new THREE.Color(0xf2f5fa);
+ballMat.envMapIntensity = 2.6;
+ballMat.color = new THREE.Color(0xf6f9ff);
 ballMat.metalness = 1;
-ballMat.roughness = 0.035;
-if (Q.cubeReflect) {
-  ballEnvRT = new THREE.WebGLCubeRenderTarget(Q.tier === 'ultra' ? 256 : 128, { type: THREE.HalfFloatType });
-  cubeCam = new THREE.CubeCamera(0.02, 6, ballEnvRT);
-  cubeCam.children.forEach((c) => c.layers.enable(ROOM_LAYER));
-  scene.add(cubeCam);
-}
-// The ball keeps the studio probe until the cube camera has genuinely
-// rendered — an un-updated cube RT is pure black and turns the hero object
-// into a dead grey marble, which is exactly what happens under software GL.
-let cubeReady = 0;
+ballMat.roughness = 0.028;
 
 /* ------------------------------------------------------------------ */
+
+const POPV = new THREE.Vector3();
 
 const game = {
   world,
@@ -301,6 +292,24 @@ const game = {
   flashV: 0,
   flash(v) {
     this.flashV = Math.max(this.flashV, v);
+  },
+  /**
+   * Throw a chunky score number up out of a playfield position. Projects the
+   * table-space point through the live camera so the number lands exactly on
+   * the thing that was hit, wherever the camera happens to be.
+   */
+  popScore(text, x, y, color, big = false) {
+    POPV.set(x, 0.05, -y);
+    table.playfieldGroup.localToWorld(POPV);
+    POPV.project(camera);
+    if (POPV.z > 1) return;
+    hud.pop(
+      text,
+      Math.round((POPV.x * 0.5 + 0.5) * window.innerWidth),
+      Math.round((-POPV.y * 0.5 + 0.5) * window.innerHeight),
+      color,
+      big
+    );
   },
   spawnBall(x, y, vx = 0, vy = 0) {
     const b = world.spawnBall(x, y, vx, vy);
@@ -506,7 +515,6 @@ let paused = false;
 let frames = 0;
 let fpsAcc = 0;
 let fps = 60;
-let cubeT = 0;
 let last = performance.now();
 let readySent = false;
 let totalFrames = 0;
@@ -682,12 +690,9 @@ function syncViews() {
 
   backdrop.material.uniforms.uTime.value = clock;
   const pulse = 0.75 + Math.sin(clock * 2.1) * 0.12;
+  // The DMD hood and the bar sign are emissive cards now, not PointLights.
   table.parts.dmdLight.intensity = 0.7 * pulse + game.flashV * 2;
   table.parts.barLight.intensity = 0.6 * pulse;
-  playerGlow.intensity = 0.5 + game.flashV * 2.5;
-  for (let i = 0; i < giLights.length; i++) {
-    giLights[i].intensity = GI_DEFS[i][3] * (0.85 + Math.sin(clock * 1.7 + i * 1.9) * 0.15);
-  }
   game.flashV = Math.max(0, game.flashV - dt * 2.4);
 
   if (!started && (clock > 0.7 || performance.now() - bootMs > 700 || window.__SHOT__)) {
@@ -695,36 +700,6 @@ function syncViews() {
     hud.hideStart();
   }
 
-  // The cube pass is 6 extra scene renders; throttle it hard and skip it
-  // entirely when the frame budget is already blown (software GL).
-  if (cubeCam && hero && frameMs < 90) {
-    cubeT += dt;
-    if (cubeT > 0.28) {
-      cubeT = 0;
-      const wp = V(hero.x, hero.y, hero.z + L.ballR);
-      table.group.localToWorld(wp);
-      cubeCam.position.copy(wp);
-      const hidden = [];
-      for (const v of game.views) {
-        hidden.push(v.group, v.trail);
-        v.group.visible = false;
-        v.trail.visible = false;
-      }
-      const gl = table.parts.glass;
-      const gv = gl.visible;
-      gl.visible = false;
-      cubeCam.update(renderer, scene);
-      gl.visible = gv;
-      for (const o of hidden) o.visible = true;
-      if (++cubeReady === 2) {
-        // Two good renders in the bank: the live cube is now strictly better
-        // than the static probe, so promote it.
-        ballMat.envMap = ballEnvRT.texture;
-        ballMat.envMapIntensity = 2.15;
-        ballMat.needsUpdate = true;
-      }
-    }
-  }
 }
 
 
@@ -908,6 +883,10 @@ window.__STATS__ = () => ({
   quality,
   resScale: Math.round(curScale * 100) / 100,
   frameMs: Math.round(frameMs * 10) / 10,
+  ...census(scene),
+  shadowCasters: casters,
+  merged: mergeReport.merged,
+  mergeReport,
 });
 
 window.__GAME__ = {

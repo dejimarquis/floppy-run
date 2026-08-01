@@ -462,7 +462,9 @@ export class World {
         pl.translate(0, hgt, 0);
         if (side > 0) pl.rotateY(Math.PI);
         pl.applyMatrix4(new THREE.Matrix4().compose(base, q, new THREE.Vector3(1, 1, 1)));
-        g.add(new THREE.Mesh(pl, mats.signMats[kind]));
+        const signMesh = new THREE.Mesh(pl, mats.signMats[kind]);
+        signMesh.castShadow = false;
+        g.add(signMesh);
         const post = new THREE.CylinderGeometry(0.08, 0.08, hgt, 6);
         post.translate(0, hgt / 2, 0);
         post.applyMatrix4(new THREE.Matrix4().compose(base, q, new THREE.Vector3(1, 1, 1)));
@@ -1284,9 +1286,6 @@ export class World {
         banner,
         new THREE.MeshStandardMaterial({
           map: bt,
-          emissiveMap: bt,
-          emissive: 0xffffff,
-          emissiveIntensity: 0.12,
           roughness: 0.62,
           metalness: 0.0,
           side: THREE.FrontSide,

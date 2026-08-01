@@ -134,48 +134,62 @@ export function makeAsphaltDetail(size = 512) {
 export function makeRoadSurface({ width = 2048, height = 2048, roadWidth = 26, segLen = 40 } = {}) {
   const c = canvas(width, height);
   const ctx = c.getContext('2d');
-  // base asphalt
-  const img = ctx.createImageData(width, height);
-  const d = img.data;
-  const hf = new Float32Array(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const u = x / width, v = y / height;
+
+  // The asphalt noise is low frequency compared with the lane paint, so it is
+  // evaluated on a quarter-size grid and bilinearly upscaled. Evaluating two
+  // worley layers plus three fbm octaves per pixel at 2048x2048 was ~3s of the
+  // boot budget on its own; at 512x512 it is ~60ms and, once the paint is drawn
+  // at full resolution on top, visually identical at any angle a car sees.
+  const NW = Math.max(128, width >> 2), NH = Math.max(128, height >> 2);
+  const nc = canvas(NW, NH);
+  const nctx = nc.getContext('2d');
+  const nimg = nctx.createImageData(NW, NH);
+  const nd = nimg.data;
+  const hf = new Float32Array(NW * NH);
+  for (let y = 0; y < NH; y++) {
+    const v = y / NH;
+    for (let x = 0; x < NW; x++) {
+      const u = x / NW;
       const w2 = worley(u, v, 90, 11).f1;
       const w1 = worley(u, v, 34, 5).f1;
       const grain = 1 - clamp(w2 * 2.3, 0, 1);
       const pebble = 1 - clamp(w1 * 2.6, 0, 1);
-      const dirt = fbm(u * 10, v * 10, 5, 2, 0.55, 10) * 0.5 + 0.5;
+      const dirt = fbm(u * 10, v * 10, 4, 2, 0.55, 10) * 0.5 + 0.5;
       const patch = smoothstep(0.42, 0.6, fbm(u * 3.1 + 5, v * 3.1 - 2, 3, 2, 0.5, 3));
       // real asphalt sits around 0.28-0.36 in sRGB (~0.06-0.10 linear); anything
       // darker reads as a black void once tone-mapped
-      let base = 0.238 + dirt * 0.082 + pebble * 0.062 + grain * 0.046;
-      base = base * (1 - patch * 0.22) + patch * 0.155;
+      let base = 0.132 + dirt * 0.062 + pebble * 0.048 + grain * 0.034;
+      base = base * (1 - patch * 0.26) + patch * 0.105;
       // darker wheel-worn tracks (2 per lane direction)
       const lane = u * roadWidth - roadWidth / 2;
-      const trackDark =
-        Math.exp(-Math.pow((Math.abs(lane) % 4.2) - 1.1, 2) / 0.6) * 0.35;
+      const trackDark = Math.exp(-Math.pow((Math.abs(lane) % 4.2) - 1.1, 2) / 0.6) * 0.35;
       base *= 1 - trackDark * 0.30;
-      hf[y * width + x] = pebble * 0.55 + grain * 0.3 + dirt * 0.25 - patch * 0.35;
-      const i = (y * width + x) * 4;
-      d[i] = base * 255 * 1.0;
-      d[i + 1] = base * 255 * 1.02;
-      d[i + 2] = base * 255 * 1.05;
-      d[i + 3] = 255;
+      // grime / wear, folded into the same pass instead of a second full-res
+      // read-modify-write of the whole canvas
+      base *= 0.82 + 0.18 * (fbm(u * 26, v * 26, 3, 2, 0.5, 26) * 0.5 + 0.5);
+      hf[y * NW + x] = pebble * 0.55 + grain * 0.3 + dirt * 0.25 - patch * 0.35;
+      const i = (y * NW + x) * 4;
+      nd[i] = base * 255 * 1.0;
+      nd[i + 1] = base * 255 * 1.02;
+      nd[i + 2] = base * 255 * 1.05;
+      nd[i + 3] = 255;
     }
   }
-  ctx.putImageData(img, 0, 0);
+  nctx.putImageData(nimg, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(nc, 0, 0, width, height);
 
-  // ---- lane markings (world units -> px)
+  // ---- lane markings (world units -> px). Drawn at full resolution so the
+  // paint stays razor sharp even though the asphalt under it is upscaled.
   const px = width / roadWidth;      // px per metre across
   const pz = height / segLen;        // px per metre along
   const X = (m) => (m + roadWidth / 2) * px;
   ctx.save();
   // Paint is opaque, not additive: 'lighter' pushed the centre line's red and
   // green channels into the clamp together, so a 250/200/66 traffic yellow
-  // came out as 240/240/131 lime and the grade's cool shadow tint finished the
-  // job by rendering it green.
-  const paint = (xm, wm, dash, color = 'rgba(238,241,244,1.0)') => {
+  // came out as 240/240/131 lime.
+  const paint = (xm, wm, dash, color = 'rgba(244,247,250,1.0)') => {
     ctx.fillStyle = color;
     const w = wm * px;
     if (!dash) {
@@ -186,35 +200,25 @@ export function makeRoadSurface({ width = 2048, height = 2048, roadWidth = 26, s
     }
   };
   // outer solid edges
-  paint(-12.35, 0.30, false);
-  paint(12.35, 0.30, false);
+  paint(-12.35, 0.32, false);
+  paint(12.35, 0.32, false);
   // centre double yellow
-  paint(-0.42, 0.22, false, 'rgba(228,168,38,1.0)');
-  paint(0.42, 0.22, false, 'rgba(228,168,38,1.0)');
+  paint(-0.42, 0.24, false, 'rgba(248,186,32,1.0)');
+  paint(0.42, 0.24, false, 'rgba(248,186,32,1.0)');
   // lane dashes: forward lanes at +4.1, +8.2 ; oncoming at -4.1, -8.2
-  paint(4.1, 0.22, true);
-  paint(8.2, 0.22, true);
-  paint(-4.1, 0.22, true);
-  paint(-8.2, 0.22, true);
+  paint(4.1, 0.24, true);
+  paint(8.2, 0.24, true);
+  paint(-4.1, 0.24, true);
+  paint(-8.2, 0.24, true);
   ctx.restore();
 
-  // grime + wear over the paint so it doesn't look like a decal
-  const grime = ctx.getImageData(0, 0, width, height);
-  const gd = grime.data;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const u = x / width, v = y / height;
-      const wear = 0.82 + 0.18 * (fbm(u * 26, v * 26, 4, 2, 0.5, 26) * 0.5 + 0.5);
-      const i = (y * width + x) * 4;
-      gd[i] *= wear; gd[i + 1] *= wear; gd[i + 2] *= wear;
-    }
-  }
-  ctx.putImageData(grime, 0, 0);
+  // Normal and roughness never carry paint detail, so they stay at the noise
+  // resolution -- they are sampled through the same UVs and mip out anyway.
+  const nrm = normalFromHeight(hf, NW, NH, 1.6);
 
-  const nrm = normalFromHeight(hf, width, height, 1.6);
-
-  const rough = grayCanvas(width, height, (x, y) => {
-    const u = x / width, v = y / height;
+  const RW = Math.max(128, NW >> 1);
+  const rough = grayCanvas(RW, RW, (x, y) => {
+    const u = x / RW, v = y / RW;
     const w2 = worley(u, v, 90, 11).f1;
     const lane = u * roadWidth - roadWidth / 2;
     const track = Math.exp(-Math.pow((Math.abs(lane) % 4.2) - 1.1, 2) / 0.6);

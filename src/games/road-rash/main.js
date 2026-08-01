@@ -28,8 +28,11 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.94;
+// The scene renders into a linear HDR target and the grade pass tone-maps it
+// exactly once, at the end. Leaving ACES on here tone-mapped a second time and
+// is what crushed every midtone into the washed-out look.
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.setClearColor(0x0a0d13, 1);
@@ -222,9 +225,20 @@ const pmrem = new THREE.PMREMGenerator(renderer);
     new THREE.MeshBasicMaterial({ color: tod.groundBounce, side: THREE.BackSide })
   );
   envScene.add(ground);
+
   const rt = pmrem.fromScene(envScene, 0.02);
   scene.environment = rt.texture;
   scene.environmentIntensity = tod.env;
+  // The IBL is baked once. Everything that produced it — the PMREM blur/GGX
+  // materials and the throwaway sky + bounce-card scene — is dead weight
+  // afterwards, and every one of those materials is still holding a compiled
+  // shader program alive. Drop them.
+  pmrem.dispose();
+  skyCopy.material.dispose();
+  skyCopy.geometry.dispose();
+  ground.material.dispose();
+  ground.geometry.dispose();
+  envScene.clear();
 }
 
 const HERO_SPLIT_ = 0.34;
@@ -281,7 +295,8 @@ scene.add(headLight);
 scene.add(headLight.target);
 scene.fog.color.setHex(tod.fog);
 scene.fog.density = tod.fogD;
-renderer.toneMappingExposure = tod.exposure;
+// Exposure now lives in the grade pass (the only place that tone-maps).
+const EXPOSURE = tod.exposure * 0.68;
 
 const bounce = new THREE.DirectionalLight(tod.bounceColor, tod.bounce);
 bounce.position.set(-sunDir.x * 60, 60, -sunDir.z * 60);
@@ -495,6 +510,8 @@ const camState = {
   roll: 0,
   fov: 62,
   shake: 0,
+  lagX: 0,
+  lagInit: false,
   cineT: 0,
   cineIdx: 0,
   init: false,
@@ -537,7 +554,7 @@ function updateCamera(dt) {
   const speed01 = clamp(p.v / p.maxSpeed, 0, 1.15);
 
   let idealFov = 62;
-  let fovRate = 6;
+  let fovRate = 9;
   let idealRoll = 0;
   let lagP = 7.5;
   let lagL = 10;
@@ -712,16 +729,22 @@ function updateCamera(dt) {
     camState.up.lerp(up, 1 - Math.exp(-9 * dt)).normalize();
     _cRight.crossVectors(camState.fwd, camState.up).normalize();
     _cUp.crossVectors(_cRight, camState.fwd).normalize();
+    // The lens trails the bike laterally instead of being welded to it, so a
+    // steer reads as "I moved" rather than "the world slid sideways".
+    if (!camState.lagInit) { camState.lagInit = true; camState.lagX = p.x; }
+    camState.lagX = damp(camState.lagX, p.x, 3.6, dt);
+    const driftX = clamp(p.x - camState.lagX, -1.6, 1.6);
     _idealPos
       .copy(p.pos)
       .addScaledVector(camState.fwd, -back)
       .addScaledVector(_cUp, height)
-      .addScaledVector(_cRight, p.lean * 0.55);
+      .addScaledVector(_cRight, p.lean * 0.55 - driftX * 0.92);
     _idealLook
       .copy(p.pos)
       .addScaledVector(camState.fwd, 15 + speed01 * 13)
+      .addScaledVector(_cRight, -driftX * 0.5)
       .addScaledVector(_cUp, 1.28 - speed01 * 0.22);
-    idealFov = 62 + speed01 * 20 + boostPunch * 6;
+    idealFov = 62 + speed01 * 27 + boostPunch * 10;
     idealRoll = -p.lean * 0.3;
     lagP = 40;
     lagL = 40;
@@ -747,8 +770,8 @@ function updateCamera(dt) {
   camState.shake = Math.max(0, camState.shake - dt * 2.6);
   // above 120 km/h (33.3 m/s) a tight 18 Hz buzz gets layered on top of the
   // slow body roll - it is what sells "this thing is about to get away from me".
-  const buzz = clamp((p.v - 33.3) / 30, 0, 1);
-  const amp = clamp((p.v - 46) / 60, 0, 1) * 0.028 + p.offroad * 0.07 + camState.shake * 0.6;
+  const buzz = clamp((p.v - 28) / 28, 0, 1);
+  const amp = clamp((p.v - 38) / 52, 0, 1) * 0.046 + p.offroad * 0.08 + camState.shake * 0.7;
   const tn = performance.now() * 0.001;
   const b18 = Math.sin(tn * 113.1) * buzz * 0.016;
   const b23 = Math.sin(tn * 146.6) * buzz * 0.011;
@@ -804,6 +827,9 @@ function attack(attacker, target, side) {
   attacker.bike.punch(side, () => resolveHit(attacker, target, side));
 }
 
+const WHACKS = ['WHACK!', 'SMACK!', 'CRUNCH!', 'BAM!', 'THWACK!'];
+let whackN = 0;
+
 function resolveHit(attacker, target, side) {
   if (!target || target.crashed || attacker.crashed) return;
   const ds = track.delta(target.s, attacker.s);
@@ -816,30 +842,35 @@ function resolveHit(attacker, target, side) {
   const hitPos = target.group.position.clone()
     .lerp(attacker.group.position, 0.42)
     .addScaledVector(target.upW, 1.44);
-  vfx.impactFlash(hitPos, 1.1);
-  vfx.sparks.emit(hitPos, attacker.rightW.clone().multiplyScalar(side).addScaledVector(attacker.upW, 0.9), 70, {
-    speed: 19,
-    life: 0.45,
-    size: 0.30,
-    color: [1.0, 0.86, 0.58],
+  vfx.impactFlash(hitPos, 1.9);
+  vfx.sparks.emit(hitPos, attacker.rightW.clone().multiplyScalar(side).addScaledVector(attacker.upW, 0.9), 130, {
+    speed: 24,
+    life: 0.55,
+    size: 0.36,
+    color: [1.0, 0.92, 0.62],
   });
-  vfx.rings.burst(hitPos, 0xffd9a0, 1.55, 0.42);
+  vfx.rings.burst(hitPos, 0xffe6b0, 2.4, 0.40);
+  vfx.rings.burst(hitPos, 0xff7a2a, 1.3, 0.30);
+  // The rival has to visibly reel, or the hit reads as a particle effect that
+  // happened to be near a bike.
+  target.stagger = Math.min(1, target.stagger + 0.55);
+  target.wobble = Math.min(1, target.wobble + 0.6);
   // 45 ms of hitstop is imperceptible; Burnout-class impact is ~110 ms with a
   // camera dolly toward the contact.
-  hitStop = Math.max(hitStop, 0.11);
+  hitStop = Math.max(hitStop, 0.17);
   if (attacker === player) {
-    camState.shake = Math.max(camState.shake, 0.42);
-    camState.punchDolly = 0.09;
-    camState.punchRoll = 0.05 * side;
+    camState.shake = Math.max(camState.shake, 0.78);
+    camState.punchDolly = 0.17;
+    camState.punchRoll = 0.09 * side;
     meleeCam.target = target;
     meleeCam.t = 0.62;
-    flash = 0.07;
-    if (!down) hud.callout('HIT!', `${target.name} staggered`);
+    flash = 0.20;
+    if (!down) hud.callout(WHACKS[(whackN++) % WHACKS.length], `${target.name} reeling`);
   }
   if (target === player) {
-    camState.shake = Math.max(camState.shake, 0.5);
+    camState.shake = Math.max(camState.shake, 0.62);
     damageFlash = 1;
-    if (!down) hud.callout('BLOCKED!', `${attacker.name} swung wide`);
+    if (!down) hud.callout('OOF!', `${attacker.name} caught you`);
   }
   if (down) onTakedown(attacker, target);
 }
@@ -903,8 +934,8 @@ function racerCollisions(dt) {
         a.vx += sgn * push * dt * 10;
         b.vx -= sgn * push * dt * 10;
         if (Math.abs(a.v - b.v) > 9) {
-          a.health -= 0.006;
-          b.health -= 0.006;
+          a.health = Math.max(0.05, a.health - 0.05 * dt);
+          b.health = Math.max(0.05, b.health - 0.05 * dt);
         }
         if (a === player || b === player) camState.shake = Math.max(camState.shake, 0.12);
       }
@@ -1148,6 +1179,19 @@ function step(dt) {
     }
   }
   readInput(dt);
+
+  if (player.railBang > 0.05 && !player.crashed) {
+    const k = player.railBang;
+    const railPos = player.group.position.clone()
+      .addScaledVector(player.rightW, Math.sign(player.x) * 0.55)
+      .addScaledVector(player.upW, 0.35);
+    vfx.sparks.emit(railPos, player.rightW.clone().multiplyScalar(-Math.sign(player.x)).addScaledVector(player.upW, 0.5), 40 + k * 60, {
+      speed: 16, life: 0.4, size: 0.22, color: [1.0, 0.82, 0.45],
+    });
+    camState.shake = Math.max(camState.shake, 0.22 + k * 0.3);
+    audio.impact(0.35 + k * 0.4);
+    player.railBang = 0;
+  }
 
   for (const r of racers) {
     const brain = brains.get(r);
@@ -1401,16 +1445,17 @@ function render(now) {
     _horizDir.project(camera);
     post.setParams({
       uHorizon: clamp(_horizDir.y * 0.5 + 0.5, 0.02, 0.98),
-      uBlur: (0.003 + speed01 * 0.045) * (player.boosting ? 1.25 : 1) * stat,
-      uSpeed: clamp((player.v - 25) / 45, 0, 1) * stat * (player.crashed ? 0.2 : 1),
-      uCA: 0.00035 + speed01 * 0.00055,
+      uBlur: (0.004 + speed01 * 0.050) * (player.boosting ? 1.25 : 1) * stat,
+      uSpeed: clamp((player.v - 16) / 36, 0, 1) * stat * (player.crashed ? 0.2 : 1),
+      uCA: 0.00040 + speed01 * 0.00085,
       uVignette: 0.62,
       uGrain: quality === 'low' ? 0.022 : 0.032,
       uDamage: damageFlash * 0.62,
       uFlash: flash,
       uSlowmo: clamp(slowmo, 0, 1),
-      uSat: 1.12,
-      uContrast: 1.05,
+      uExposure: EXPOSURE,
+      uSat: 1.46,
+      uContrast: 1.12,
       uWarm: tod.grade.warm,
       uTeal: tod.grade.teal,
     });
@@ -1623,7 +1668,39 @@ void bootRng;
 // first render of each material, so the opening seconds of play stutter once
 // per new object type entering view (67 programs = 67 stalls). This is the
 // single biggest cause of the "lag" felt on real hardware.
+//
+// The scene is rendered INTO the composer's HalfFloat target, where the
+// renderer's output colour space is linear-sRGB rather than the sRGB of the
+// default framebuffer. Compiling with no target bound therefore warmed the
+// wrong variant of every program and the real ones were compiled again on the
+// first frame — an exact 2x on the program count. Bind the target first.
+// Three.js renders every transparent DoubleSide material in TWO passes, and it
+// does so by mutating material.side to BackSide and then FrontSide around each
+// draw. Each of those states is a separate shader permutation, so one such
+// material silently costs three compiled programs (DoubleSide from the
+// precompile, plus BackSide and FrontSide from the first frame) and two draw
+// calls per object. forceSinglePass collapses all of that; on foliage cards,
+// light cones and decals — which are additive or depth-write-off anyway — the
+// two-pass sort buys nothing visible.
+{
+  let singlePassed = 0;
+  scene.traverse((o) => {
+    const m = o.material;
+    if (!m) return;
+    for (const mm of Array.isArray(m) ? m : [m]) {
+      if (mm.transparent && mm.side === THREE.DoubleSide && !mm.forceSinglePass) {
+        mm.forceSinglePass = true;
+        singlePassed++;
+      }
+    }
+  });
+  void singlePassed;
+}
+
+if (post) renderer.setRenderTarget(post.rt);
 renderer.compile(scene, camera);
+renderer.setRenderTarget(null);
+if (post) post.precompile();
 
 // The shadow camera follows the player, but 347 casters re-projected every
 // frame doubles the scene's geometry cost for detail no one can resolve in

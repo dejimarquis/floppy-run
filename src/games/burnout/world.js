@@ -92,18 +92,19 @@ export class World {
   }
 
   build() {
-    this.makeMaterials();
-    this.makeRoad();
-    this.makeBarriers();
-    this.makeTunnels();
-    this.makeCanyon();
-    this.makeBridge();
-    this.makeTerrain();
-    this.makeCity();
-    this.makeStreetFurniture();
-    this.makeSkyline();
-    this.makeRain();
-    this.mergeStaticProps();
+    const M = (n) => performance.mark('w:' + n);
+    this.makeMaterials(); M('materials');
+    this.makeRoad(); M('road');
+    this.makeBarriers(); M('barriers');
+    this.makeTunnels(); M('tunnels');
+    this.makeCanyon(); M('canyon');
+    this.makeBridge(); M('bridge');
+    this.makeTerrain(); M('terrain');
+    this.makeCity(); M('city');
+    this.makeStreetFurniture(); M('furniture');
+    this.makeSkyline(); M('skyline');
+    this.makeRain(); M('rain');
+    this.mergeStaticProps(); M('merge');
   }
 
   /**
@@ -158,7 +159,9 @@ export class World {
     const puddle = TX.makePuddleMask(512);
     this.tex = { road, detail, puddle };
 
-    const roadMat = new THREE.MeshPhysicalMaterial({
+    // Standard, not Physical: the old clearcoat layer blew the whole road to
+    // white at grazing angles and cost an extra shader permutation.
+    const roadMat = new THREE.MeshStandardMaterial({
       map: road.map,
       normalMap: road.normalMap,
       roughnessMap: road.roughnessMap,
@@ -166,8 +169,6 @@ export class World {
       metalness: 0.0,
       normalScale: new THREE.Vector2(0.5, 0.5),
       envMapIntensity: 0.18,
-      clearcoat: 0.05,
-      clearcoatRoughness: 0.34,
       dithering: true,
     });
     const uni = {

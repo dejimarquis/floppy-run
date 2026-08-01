@@ -74,6 +74,24 @@ const CSS = `
   background:linear-gradient(90deg,rgba(8,12,22,.72),rgba(8,12,22,0));
   text-shadow:0 1px 3px rgba(0,0,0,.9)}
 #pb-rank b{color:#ffd06a;font-weight:800}
+/* ---- floating score pops -------------------------------------------
+   Chunky, high-contrast, hard-shadowed numbers that punch up out of the
+   impact point and fade. This is the single clearest "that was worth
+   something" signal in the whole game, and it costs zero draw calls. */
+#pb-pops{position:absolute;inset:0;overflow:hidden}
+.pb-pop{position:absolute;transform:translate(-50%,-50%);
+  font-size:34px;font-weight:900;letter-spacing:1px;white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 10px currentColor, 0 0 26px currentColor,
+              0 3px 0 rgba(0,0,0,.85), 0 -2px 0 rgba(0,0,0,.6),
+              2px 0 0 rgba(0,0,0,.6), -2px 0 0 rgba(0,0,0,.6);
+  animation:pbpop 0.95s cubic-bezier(.16,1.1,.3,1) forwards;will-change:transform,opacity}
+.pb-pop.big{font-size:62px;letter-spacing:3px;animation-duration:1.35s}
+@keyframes pbpop{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.35) rotate(-4deg)}
+  14%{opacity:1;transform:translate(-50%,-56%) scale(1.32) rotate(2deg)}
+  30%{transform:translate(-50%,-62%) scale(1.02) rotate(0deg)}
+  100%{opacity:0;transform:translate(-50%,-125%) scale(1.06)}}
 `;
 
 export class HUD {
@@ -105,7 +123,8 @@ export class HUD {
         <div><kbd>Z</kbd><kbd>←</kbd> LEFT FLIPPER &nbsp; <kbd>/</kbd><kbd>→</kbd> RIGHT FLIPPER</div>
         <div><kbd>SPACE</kbd> PLUNGER &nbsp; <kbd>X</kbd><kbd>C</kbd><kbd>↑</kbd> NUDGE &nbsp; <kbd>1-5</kbd> CAMERA</div>
       </div>
-      <div id="pb-tilt"></div>`;
+      <div id="pb-tilt"></div>
+      <div id="pb-pops"></div>`;
     root.appendChild(el);
 
     this.start = document.createElement('div');
@@ -132,8 +151,37 @@ export class HUD {
     this.$tilt = el.querySelector('#pb-tilt');
     this.$missionCount = el.querySelector('#pb-mission-count');
     this.$next = el.querySelector('#pb-next');
+    this.$pops = el.querySelector('#pb-pops');
     this.bannerT = 0;
     this.lastBalls = -1;
+    this.popPool = [];
+    this.popLive = [];
+  }
+
+  /**
+   * Throw a score number up out of a screen position. Pooled: a busy multiball
+   * fires a dozen a second and churning DOM nodes at that rate stutters.
+   */
+  pop(text, sx, sy, color = '#ffd85a', big = false) {
+    if (sx < -80 || sy < -80 || sx > innerWidth + 80 || sy > innerHeight + 80) return;
+    if (this.popLive.length > 14) {
+      const old = this.popLive.shift();
+      old.el.remove();
+      this.popPool.push(old.el);
+    }
+    const el = this.popPool.pop() || document.createElement('div');
+    el.className = 'pb-pop' + (big ? ' big' : '');
+    el.textContent = text;
+    el.style.color = color;
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    // restart the animation on a recycled node
+    el.style.animation = 'none';
+    this.$pops.appendChild(el);
+    void el.offsetWidth;
+    el.style.animation = '';
+    const rec = { el, t: big ? 1.35 : 0.95 };
+    this.popLive.push(rec);
   }
 
   hideStart() {
@@ -190,6 +238,15 @@ export class HUD {
     if (this.bannerT > 0) {
       this.bannerT -= dt;
       if (this.bannerT <= 0) this.$banner.classList.remove('show');
+    }
+    for (let i = this.popLive.length - 1; i >= 0; i--) {
+      const r = this.popLive[i];
+      r.t -= dt;
+      if (r.t <= 0) {
+        r.el.remove();
+        this.popPool.push(r.el);
+        this.popLive.splice(i, 1);
+      }
     }
   }
 }

@@ -747,12 +747,12 @@ export class Table {
       if (Q.eventLights) g.add(light);
       this.playfieldGroup.add(g);
 
-      const rec = { id: b.id, x: b.x, y: b.y, r: b.r, group: g, collar, cap, light, skirt, level: 0, pulse: 0 };
+      const rec = { id: b.id, idx: this.parts.bumpers.length, x: b.x, y: b.y, r: b.r, group: g, collar, cap, light, skirt, level: 0, pulse: 0 };
       this.parts.bumpers.push(rec);
       this.dynamic.push((dt, t) => {
         rec.level = Math.max(0, rec.level - dt * 5.5);
         const idle = 0.5 + 0.5 * Math.sin(t * 2.4 + b.x * 30);
-        collar.material.emissiveIntensity = 0.5 + idle * 0.4 + rec.level * 7;
+        collar.material.emissiveIntensity = 0.5 + idle * 0.4 + rec.level * 16;
         cap.material.emissiveIntensity = 0.22 + idle * 0.10 + rec.level * 3.2;
         light.intensity = 0.1 + rec.level * 1.4;
         const s = 1 + rec.level * 0.22;
@@ -883,15 +883,15 @@ export class Table {
         ));
         this.playfieldGroup.add(nut);
       }
-      this.parts.drops.push({ seg, mesh, down: false, anim: 0, idx: i });
+      this.parts.drops.push({ seg, mesh, bodyMat: body, faceMat: printed, down: false, anim: 0, idx: i });
     }
     this.dynamic.push((dt) => {
       for (const d of this.parts.drops) {
         const target = d.down ? 1 : 0;
         d.anim += (target - d.anim) * Math.min(1, dt * 16);
         d.mesh.position.y = 0.012 - d.anim * 0.026;
-        d.mesh.material[5].emissiveIntensity = 0.22 * (1 - d.anim) + 0.03;
-        d.mesh.material[0].emissiveIntensity = 0.32 * (1 - d.anim) + 0.03;
+        d.faceMat.emissiveIntensity = 0.22 * (1 - d.anim) + 0.03;
+        d.bodyMat.emissiveIntensity = 0.32 * (1 - d.anim) + 0.03;
         d.seg.enabled = d.anim < 0.4;
       }
     });
@@ -952,14 +952,14 @@ export class Table {
       brk.rotation.y = s.a;
       brk.castShadow = true;
       this.playfieldGroup.add(brk);
-      this.parts.standups.push({ seg, mesh, lit: false, hit: 0, id: s.id });
+      this.parts.standups.push({ seg, mesh, bodyMat: sBody, faceMat: sFace, lit: false, hit: 0, id: s.id });
     }
     this.dynamic.push((dt) => {
       for (const s of this.parts.standups) {
         s.hit = Math.max(0, s.hit - dt * 5);
         const e = (s.lit ? 0.85 : 0.22) + s.hit * 2.4;
-        s.mesh.material[0].emissiveIntensity = e;
-        s.mesh.material[5].emissiveIntensity = e * 0.8;
+        s.bodyMat.emissiveIntensity = e;
+        s.faceMat.emissiveIntensity = e * 0.8;
         s.mesh.position.y = 0.011 - s.hit * 0.003;
       }
     });
@@ -1679,53 +1679,102 @@ export class Table {
       sh.closePath();
       return sh;
     };
-    const flatShape = (d, sx, sy) => {
-      const g2 =
-        d.shape === 'arrow'
-          ? new THREE.ShapeGeometry(arrowShape())
-          : new THREE.PlaneGeometry(1, 1);
-      g2.scale(d.w * sx, d.h * sy, 1);
+    /* ---- one mesh for every insert on the board -----------------------
+     * Forty-one inserts used to be 123 meshes (glow card + printed lens +
+     * bezel) with 123 unique materials -- roughly a third of the table's
+     * entire draw-call budget, for objects that are geometrically four
+     * vertices each.
+     *
+     * All the insert art is packed into a single atlas, all the quads are
+     * merged into one geometry, and the per-lamp brightness rides in the
+     * vertex-colour attribute. One draw call, one material, and the lamps get
+     * *brighter* than they were: the colour is driven past 1.0 so the bloom
+     * pass flares them, which is what makes a lit insert read from across the
+     * room to a ten-year-old.
+     * ------------------------------------------------------------------- */
+    const N = defs.length;
+    const COLS = Math.ceil(Math.sqrt(N));
+    const ROWS = Math.ceil(N / COLS);
+    const CELL = Q.artRes >= 2048 ? 256 : 160;
+    const atlasCv = document.createElement('canvas');
+    atlasCv.width = COLS * CELL;
+    atlasCv.height = ROWS * CELL;
+    const actx = atlasCv.getContext('2d');
+    actx.clearRect(0, 0, atlasCv.width, atlasCv.height);
+
+    const geos = [];
+    defs.forEach((d, i) => {
+      const art = makeInsertArt(
+        d.c,
+        d.t || '',
+        d.shape === 'arrow' ? d.w / d.h : Math.max(0.35, d.w / d.h),
+        d.shape || 'rect'
+      );
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const px = col * CELL;
+      const py = row * CELL;
+      const pad = 2;
+      actx.save();
+      actx.beginPath();
+      if (d.shape === 'arrow') {
+        // clip the cell to the arrow silhouette so the quad reads as an arrow
+        const cx = px + CELL / 2;
+        const cy = py + CELL / 2;
+        const S = (CELL - pad * 2) / 1.24;
+        const pt = (ax, ay) => actx.lineTo(cx + ax * S, cy - ay * S);
+        actx.moveTo(cx + 0 * S, cy - 0.62 * S);
+        pt(0.5, -0.06); pt(0.2, -0.06); pt(0.2, -0.62);
+        pt(-0.2, -0.62); pt(-0.2, -0.06); pt(-0.5, -0.06);
+        actx.closePath();
+      } else {
+        actx.rect(px + pad, py + pad, CELL - pad * 2, CELL - pad * 2);
+      }
+      actx.clip();
+      actx.drawImage(art.lens, px + pad, py + pad, CELL - pad * 2, CELL - pad * 2);
+      actx.restore();
+
+      const g2 = new THREE.PlaneGeometry(1, 1);
+      g2.scale(d.w * 1.16, d.h * 1.34, 1);
       g2.rotateX(-Math.PI / 2);
-      return g2;
-    };
+      g2.rotateY(d.rot || 0);
+      const p = V(d.x, d.y, 0.0013);
+      g2.translate(p.x, p.y, p.z);
+      const u0 = (px + pad) / atlasCv.width;
+      const u1 = (px + CELL - pad) / atlasCv.width;
+      const v1 = 1 - (py + pad) / atlasCv.height;
+      const v0 = 1 - (py + CELL - pad) / atlasCv.height;
+      const uv = g2.attributes.uv;
+      for (let k = 0; k < uv.count; k++) {
+        uv.setXY(k, u0 + uv.getX(k) * (u1 - u0), v0 + uv.getY(k) * (v1 - v0));
+      }
+      const n = g2.attributes.position.count;
+      g2.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(0.4), 3));
+      geos.push(g2);
+    });
 
-    for (const d of defs) {
-      const art = d.t
-        ? makeInsertArt(
-            d.c,
-            d.t,
-            d.shape === 'arrow' ? d.w / d.h : Math.max(0.35, d.w / d.h),
-            d.shape || 'rect'
-          )
-        : null;
-      const lensPrint = art
-        ? canvasTexture(art.lens, { srgb: true, aniso: Q.aniso, renderer: this.renderer })
-        : null;
-      const glowTex = art
-        ? canvasTexture(art.glow, { srgb: true, aniso: Q.aniso, renderer: this.renderer })
-        : lensTex;
-      const geo = flatShape(d, art ? 1.16 : 1.35, art ? 1.34 : 1.7);
-      const mat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(d.c),
-        map: glowTex,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      const m = new THREE.Mesh(geo, mat);
-      m.position.copy(V(d.x, d.y, 0.0012));
-      m.rotation.y = d.rot || 0;
-      m.renderOrder = 2;
-      this.playfieldGroup.add(m);
+    const atlasTex = canvasTexture(atlasCv, { srgb: true, aniso: Q.aniso, renderer: this.renderer });
+    const fieldGeo = mergeGeometries(geos, false);
+    const fieldMat = new THREE.MeshBasicMaterial({
+      map: atlasTex,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide,
+    });
+    const field = new THREE.Mesh(fieldGeo, fieldMat);
+    field.renderOrder = 3;
+    field.frustumCulled = false;
+    this.playfieldGroup.add(field);
+    this.lampField = { mesh: field, attr: fieldGeo.attributes.color, per: 4 };
 
+    // The bezel is the dark milled ring the lens sits in. Shared material, so
+    // the optimiser folds all forty-one into one draw.
+    defs.forEach((d) => {
       const bezGeo =
         d.shape === 'arrow'
           ? (() => {
-              const gg = new THREE.ExtrudeGeometry(arrowShape(), {
-                depth: 0.0016,
-                bevelEnabled: false,
-              });
+              const gg = new THREE.ExtrudeGeometry(arrowShape(), { depth: 0.0016, bevelEnabled: false });
               gg.scale(d.w * 1.18, d.h * 1.18, 1);
               gg.rotateX(Math.PI / 2);
               return gg;
@@ -1734,98 +1783,63 @@ export class Table {
       const bez = new THREE.Mesh(bezGeo, bezelMat);
       bez.position.copy(V(d.x, d.y, -0.0002));
       bez.rotation.y = d.rot || 0;
-      bez.receiveShadow = true;
       this.playfieldGroup.add(bez);
+    });
 
-      const lensGeo =
-        d.shape === 'arrow'
-          ? (() => {
-              const gg = new THREE.ExtrudeGeometry(arrowShape(), {
-                depth: 0.0011,
-                bevelEnabled: false,
-              });
-              gg.scale(d.w, d.h, 1);
-              gg.rotateX(Math.PI / 2);
-              return gg;
-            })()
-          : new THREE.BoxGeometry(d.w, 0.0011, d.h);
-      // BoxGeometry face order is +x -x +y -y +z -z; only the +y face (the one
-      // flush with the wood) carries the print, the rim stays raw acrylic.
-      const rimMat = mkMat(THREE, {
-        color: new THREE.Color(d.c).clone().multiplyScalar(0.16),
-        metalness: 0,
-        roughness: 0.12,
-        envMap: this.env,
-        envMapIntensity: 0.5,
-        emissive: new THREE.Color(d.c),
-        emissiveIntensity: 0.03,
-      });
-      const faceMat = lensPrint
-        ? mkMat(THREE, {
-            map: lensPrint,
-            emissiveMap: lensPrint,
-            color: 0xffffff,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.05,
-            metalness: 0,
-            roughness: 0.09,
-            clearcoat: 1,
-            clearcoatRoughness: 0.05,
-            envMap: this.env,
-            envMapIntensity: 0.5,
-          })
-        : mkMat(THREE, {
-            color: new THREE.Color(d.c).clone().multiplyScalar(0.13),
-            metalness: 0,
-            roughness: 0.10,
-            envMap: this.env,
-            envMapIntensity: 0.55,
-            transparent: true,
-            opacity: 0.62,
-            emissive: new THREE.Color(d.c),
-            emissiveIntensity: 0.03,
-          });
-      const lens = new THREE.Mesh(
-        lensGeo,
-        d.shape === 'arrow' || !lensPrint
-          ? faceMat
-          : [rimMat, rimMat, faceMat, rimMat, rimMat, rimMat]
-      );
-      lens.position.copy(V(d.x, d.y, 0.0006));
-      lens.rotation.y = d.rot || 0;
-      this.playfieldGroup.add(lens);
-      this.lampLens = this.lampLens || {};
-      this.lampLens[d.id] = lens;
-      this.lamps[d.id] = { mesh: m, mat, on: false, blink: 0, level: 0, color: new THREE.Color(d.c) };
-    }
+    defs.forEach((d, i) => {
+      this.lamps[d.id] = {
+        idx: i,
+        on: false,
+        blink: 0,
+        level: 0,
+        color: new THREE.Color(d.c),
+        tint: new THREE.Color(0xffffff),
+      };
+    });
     this.lampOrder = defs.map((d) => d.id);
+
     this.dynamic.push((dt, t) => {
       const order = this.lampOrder;
       for (let i = 0; i < order.length; i++) {
-        const k = order[i];
-        const lp = this.lamps[k];
+        const lp = this.lamps[order[i]];
         let target = 0;
         if (lp.on) target = 1;
         if (lp.blink) target = Math.sin(t * lp.blink * 6.283) > 0 ? 1 : 0.06;
-        // Idle shimmer: a real machine never has a dark insert field. Any
-        // lamp the ruleset is not driving still breathes on a slow chase so
-        // the board sparkles in attract and between shots.
+        // Idle shimmer: a real machine never has a dark insert field. Any lamp
+        // the ruleset is not driving still breathes on a slow chase.
         if (!lp.on) {
           const phase = t * 0.85 - i * 0.42;
-          target = Math.max(target, 0.16 + 0.24 * Math.max(0, Math.sin(phase)) ** 3);
+          target = Math.max(target, 0.18 + 0.26 * Math.max(0, Math.sin(phase)) ** 3);
         }
         lp.level += (target - lp.level) * Math.min(1, dt * 22);
-        lp.mat.opacity = lp.level * 0.52;
-        const ln = this.lampLens && this.lampLens[k];
-        if (ln) {
-          const e = 0.05 + lp.level * 1.25;
-          if (Array.isArray(ln.material)) {
-            ln.material[2].emissiveIntensity = e;
-            ln.material[0].emissiveIntensity = e * 0.55;
-          } else ln.material.emissiveIntensity = e;
-        }
+        lp.tint.setRGB(1, 1, 1);
       }
+      this.flushLamps();
     });
+  }
+
+  /** Push per-lamp brightness into the shared insert mesh's vertex colours. */
+  flushLamps() {
+    const f = this.lampField;
+    if (!f) return;
+    const a = f.attr;
+    const arr = a.array;
+    const order = this.lampOrder;
+    for (let i = 0; i < order.length; i++) {
+      const lp = this.lamps[order[i]];
+      // 0.34 = a dull printed lens; 2.9 = blown past white so bloom flares it.
+      const b = 0.34 + lp.level * 2.56;
+      const r = lp.tint.r * b;
+      const g = lp.tint.g * b;
+      const bl = lp.tint.b * b;
+      const o = lp.idx * f.per * 3;
+      for (let k = 0; k < f.per; k++) {
+        arr[o + k * 3] = r;
+        arr[o + k * 3 + 1] = g;
+        arr[o + k * 3 + 2] = bl;
+      }
+    }
+    a.needsUpdate = true;
   }
 
   setLamp(id, on, blink = 0) {
@@ -2077,7 +2091,10 @@ export class Table {
     g.add(lip);
     const dmdLight = new THREE.PointLight(0xffa030, 0.9, 1.1, 2);
     dmdLight.position.set(0, DMD_Y, z + 0.12);
-    g.add(dmdLight);
+    // The DMD glow comes from the emissive screen through bloom, not from a
+    // real light. Keeping the object means the show code can still drive
+    // `.intensity` as a pulse channel without paying for a light.
+    if (Q.practicalLights) g.add(dmdLight);
     this.parts.dmdLight = dmdLight;
 
     // speaker grilles — perforated plate, clear of the DMD window
@@ -2244,11 +2261,9 @@ export class Table {
       else if (s.kind === 'multiball') lit = (i + chase) % 3 !== 0;
       else lit = (i + chase) % 2 === 0;
       lp.level = lit ? 1 : 0.05;
-      lp.mat.opacity = lp.level * 0.26;
-      lp.mat.color.setHex(palette[(i + chase) % palette.length]);
-      const ln = this.lampLens && this.lampLens[k];
-      if (ln) ln.material.emissiveIntensity = 0.03 + lp.level * 0.8;
+      lp.tint.setHex(palette[(i + chase) % palette.length]);
     });
+    this.flushLamps();
     const fl = this.parts.flashers || [];
     fl.forEach((f, i) => {
       const hit = s.kind === 'tilt' ? Math.floor(t * 6) % 2 === 0 : (i + Math.floor(t * 9)) % fl.length < 2;

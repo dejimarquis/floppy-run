@@ -10,7 +10,7 @@ export const Q = {
   transmission: true, // MeshPhysicalMaterial.transmission (costs a full extra scene pass)
   shadows: true,
   artRes: 2048,
-  cubeReflect: true,
+  cubeReflect: false,
   particles: 900,
   pixelRatio: 1,
   bloomMips: 5,
@@ -20,7 +20,7 @@ export const Q = {
   washSpot: true,
   sceneGI: 4,
   eventLights: true,
-  practicalLights: true, // real PointLights for lamps (GPU only; CPU uses glow cards)
+  practicalLights: false, // lamps are emissive + bloom, never real lights (see main.js)
 };
 
 const TIERS = {
@@ -58,9 +58,9 @@ const TIERS = {
     transmission: true,
     shadows: true,
     artRes: 2048,
-    cubeReflect: true,
+    cubeReflect: false,
     particles: 900,
-    pixelRatio: 1.25,
+    pixelRatio: 1.1,
     bloomMips: 5,
     aniso: 16,
     envRes: 256,
@@ -73,9 +73,9 @@ const TIERS = {
     transmission: true,
     shadows: true,
     artRes: 2560,
-    cubeReflect: true,
+    cubeReflect: false,
     particles: 900,
-    pixelRatio: 1.6,
+    pixelRatio: 1.25,
     bloomMips: 5,
     aniso: 16,
     envRes: 512,
@@ -92,6 +92,17 @@ export function setTier(t) {
   Q.tier = TIERS[t] ? t : 'high';
   Object.assign(Q, cfg);
   Q.softwareGL = soft;
+  // Never negotiable, on any tier: real per-lamp lights are what put this
+  // table at 13fps. Lamps glow through emissive + bloom instead.
+  Q.practicalLights = false;
+  Q.cubeReflect = false;
+  Q.giLights = false;
+  Q.washSpot = false;
+  // MeshPhysicalMaterial.transmission makes three.js render the ENTIRE scene a
+  // second time into a back-buffer, every frame. Two plastics and a ball
+  // ramp are not worth doubling the frame. physicalParams() approximates it
+  // with plain alpha, which on a saturated stylised table is indistinguishable.
+  Q.transmission = false;
   if (soft) {
     // A CPU rasteriser JIT-compiles and executes the physical-material lobes
     // roughly 20x slower than the standard one. Keep every light, lamp, mesh
