@@ -15,10 +15,19 @@ const CSS = `
 .co-stat { display:flex; flex-direction:column; }
 .co-label { font-size:11px; letter-spacing:.28em; font-weight:800; color:#8fa3bd; text-transform:uppercase; margin-bottom:2px;
   text-shadow:0 2px 8px rgba(0,0,0,.9); }
-.co-value { font-size:34px; font-weight:900; font-style:italic; letter-spacing:-.02em; line-height:.95;
-  text-shadow:0 3px 16px rgba(0,0,0,.95), 0 0 24px rgba(80,170,255,.25); }
-.co-value small { font-size:15px; font-weight:800; opacity:.7; margin-left:3px; }
-#co-score .co-value { color:#ffe9a8; text-shadow:0 3px 16px rgba(0,0,0,.95), 0 0 26px rgba(255,180,40,.45); }
+.co-value { font-size:48px; font-weight:900; font-style:italic; letter-spacing:-.035em; line-height:.92;
+  -webkit-text-stroke:1.5px rgba(2,4,9,.85); paint-order:stroke fill;
+  text-shadow:0 3px 16px rgba(0,0,0,.95), 0 0 26px rgba(80,190,255,.45); }
+.co-value small { font-size:19px; font-weight:800; opacity:.75; margin-left:3px; }
+#co-score { align-items:flex-end; }
+#co-score .co-value { color:#ffdf4a; transform-origin:100% 50%;
+  text-shadow:0 3px 16px rgba(0,0,0,.95), 0 0 30px rgba(255,190,40,.85), 0 0 70px rgba(255,140,0,.5); }
+#co-td .co-value, #co-tdwrap .co-value { color:#ff5c3a; }
+
+#co-pops { position:absolute; right:34px; top:120px; width:340px; text-align:right; }
+#co-pops div { font-size:40px; font-weight:900; font-style:italic; letter-spacing:-.03em; color:#ffe066;
+  -webkit-text-stroke:2px rgba(2,4,9,.9); paint-order:stroke fill;
+  text-shadow:0 0 26px rgba(255,170,30,.9), 0 4px 16px #000; will-change:transform,opacity; }
 
 #co-boostwrap { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); width:430px; }
 #co-boostbar { position:relative; height:16px; border-radius:3px; overflow:hidden;
@@ -39,13 +48,14 @@ const CSS = `
 #co-callout .scrim { position:absolute; left:-10%; top:-6%; width:120%; height:132%; opacity:0;
   background:linear-gradient(180deg, rgba(3,5,9,0) 0%, rgba(3,5,9,.86) 22%, rgba(3,5,9,.90) 72%, rgba(3,5,9,0) 100%);
   transform:skewY(-2.2deg); }
-#co-callout .big { position:relative; font-size:112px; font-weight:900; font-style:italic; letter-spacing:-.045em; line-height:.86;
-  text-transform:uppercase; opacity:0;
-  -webkit-text-stroke:2px rgba(2,3,6,.92); paint-order:stroke fill; }
-#co-callout .sub { position:relative; font-size:25px; font-weight:800; letter-spacing:.26em; text-transform:uppercase; opacity:0; margin-top:10px;
+#co-callout .big { position:relative; font-size:clamp(72px, 11.2vw, 168px); font-weight:900; font-style:italic;
+  letter-spacing:-.05em; line-height:.84; white-space:nowrap;
+  text-transform:uppercase; opacity:0; will-change:transform,opacity;
+  -webkit-text-stroke:5px rgba(2,3,6,.94); paint-order:stroke fill; }
+#co-callout .sub { position:relative; font-size:29px; font-weight:800; letter-spacing:.26em; text-transform:uppercase; opacity:0; margin-top:10px;
   color:#eef4ff; text-shadow:0 0 18px rgba(0,0,0,.95), 0 2px 10px #000; }
 
-#co-chain { position:absolute; left:50%; top:19%; transform:translateX(-50%); font-size:26px; font-weight:900; font-style:italic;
+#co-chain { position:absolute; left:50%; top:34%; transform:translateX(-50%); font-size:40px; font-weight:900; font-style:italic;
   letter-spacing:.05em; opacity:0; color:#ffd76a; text-shadow:0 0 26px rgba(255,170,40,.9), 0 3px 14px #000; }
 
 #co-crash { position:absolute; left:50%; bottom:96px; transform:translateX(-50%); width:520px; opacity:0; transition:opacity .18s; }
@@ -98,6 +108,7 @@ export class HUD {
         <div id="co-boostlabel">Boost — Shift</div>
       </div>
       <div id="co-chain"></div>
+      <div id="co-pops"></div>
       <div id="co-callout"><div class="scrim"></div><div class="big"></div><div class="sub"></div></div>
       <div id="co-crash"><div class="bar"><div class="fill"></div></div><div class="txt">Crashbreaker — steer into traffic</div></div>
       <div id="co-flash"></div>
@@ -119,6 +130,8 @@ export class HUD {
     this.calloutSub = el.querySelector('#co-callout .sub');
     this.calloutScrim = el.querySelector('#co-callout .scrim');
     this.chain = el.querySelector('#co-chain');
+    this.pops = el.querySelector('#co-pops');
+    this.popList = [];
     this.crash = el.querySelector('#co-crash');
     this.crashFill = el.querySelector('#co-crash .fill');
     this.flash = el.querySelector('#co-flash');
@@ -169,6 +182,37 @@ export class HUD {
     this.calloutT = 1.9;
   }
 
+  // Floating score popup. A 10-year-old needs to SEE the points land, not
+  // notice a counter tick. Nodes are recycled through a small list so a
+  // 6-takedown chain does not churn the DOM.
+  scorePop(text, color = '#ffe066', big = false) {
+    if (!this.pops) return;
+    let node = this.popList.find(n => n.t <= 0);
+    if (!node) {
+      if (this.popList.length >= 8) return;
+      node = { el: document.createElement('div'), t: 0 };
+      this.pops.appendChild(node.el);
+      this.popList.push(node);
+    }
+    node.el.textContent = text;
+    node.el.style.color = color;
+    node.el.style.fontSize = big ? '64px' : '40px';
+    node.t = 1.25;
+    node.life = 1.25;
+  }
+
+  updatePops(dt) {
+    for (const n of this.popList) {
+      if (n.t <= 0) { if (n.el.style.opacity !== '0') n.el.style.opacity = '0'; continue; }
+      n.t -= dt;
+      const k = 1 - Math.max(0, n.t) / n.life;
+      const pop = k < 0.10 ? k / 0.10 : 1;
+      const sc = 0.5 + pop * 0.62 - Math.max(0, k - 0.55) * 0.18;
+      n.el.style.opacity = k > 0.62 ? clamp((1 - k) / 0.38, 0, 1) : 1;
+      n.el.style.transform = `translateY(${-k * 96}px) scale(${sc}) skewX(-9deg)`;
+    }
+  }
+
   showChain(text) {
     this.chain.textContent = text;
     this.chainT = 1.5;
@@ -181,6 +225,15 @@ export class HUD {
     this.shownScore += (s.score - this.shownScore) * clamp(dt * 7, 0, 1);
     if (Math.abs(s.score - this.shownScore) < 1) this.shownScore = s.score;
     this.scoreEl.textContent = Math.round(this.shownScore).toLocaleString();
+    // Score counter kicks while it is still catching up, so points landing is
+    // a physical event rather than a silent digit change.
+    this.scoreKick = Math.max(0, (this.scoreKick || 0) - dt * 3.4);
+    if (s.score - this.shownScore > 40) this.scoreKick = 1;
+    if (this.scoreKick > 0.001 || this._kicked) {
+      this.scoreEl.style.transform = `scale(${1 + this.scoreKick * 0.30}) skewX(${-this.scoreKick * 5}deg)`;
+      this._kicked = this.scoreKick > 0.001;
+    }
+    this.updatePops(dt);
     this.tdEl.textContent = s.takedowns;
     this.posEl.innerHTML = `${s.position}<small>/${s.racers}</small>`;
     this.lapEl.innerHTML = `${s.lap}<small>/${s.laps}</small>`;
@@ -199,12 +252,21 @@ export class HUD {
       // half-faded by the time a 1fps harness fires the shutter.
       if (!this.holdCallouts) this.calloutT -= dt;
       const t = this.holdCallouts ? 0.45 : 1 - this.calloutT / 1.9;
-      const pop = t < 0.12 ? t / 0.12 : 1;
-      const scale = 0.72 + pop * 0.42 - Math.max(0, t - 0.7) * 0.25;
-      const skew = -10 + (1 - pop) * 26;
-      const op = t < 0.1 ? t / 0.1 : t > 0.72 ? clamp((1 - t) / 0.28, 0, 1) : 1;
+      // Hard slam: overshoot past 1 then settle, with a decaying rattle for the
+      // first third of a second so the word physically shakes the screen.
+      const pop = t < 0.09 ? t / 0.09 : 1;
+      const settle = clamp((t - 0.09) / 0.16, 0, 1);
+      const scale = (0.42 + pop * 0.72) * (1 + (1 - settle) * 0.14 * Math.cos(t * 74))
+                    - Math.max(0, t - 0.7) * 0.18;
+      const skew = -9 + (1 - pop) * 34;
+      const rattle = Math.max(0, 1 - t / 0.30);
+      const sx = Math.sin(t * 190) * 22 * rattle;
+      const sy = Math.cos(t * 151) * 13 * rattle;
+      const rot = Math.sin(t * 133) * 2.4 * rattle;
+      const op = t < 0.06 ? t / 0.06 : t > 0.72 ? clamp((1 - t) / 0.28, 0, 1) : 1;
       this.calloutBig.style.opacity = op;
-      this.calloutBig.style.transform = `scale(${scale}) skewX(${skew}deg)`;
+      this.calloutBig.style.transform =
+        `translate(${sx}px,${sy}px) rotate(${rot}deg) scale(${scale}) skewX(${skew}deg)`;
       this.calloutSub.style.opacity = op * 0.9;
       this.calloutSub.style.transform = `translateX(${(1 - pop) * -40}px)`;
       if (this.calloutScrim) this.calloutScrim.style.opacity = op * 0.92;

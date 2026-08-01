@@ -379,7 +379,6 @@ export class VFX {
     const shardGeo = bevelBox(0.11, 0.045, 0.15);
     const mkMat = (c, r) => new THREE.MeshStandardMaterial({
       color: c, vertexColors: true, metalness: 0.26, roughness: r, envMapIntensity: 0.95,
-      side: THREE.DoubleSide,
     });
     this.debrisPanel = new DebrisSystem(scene, 170, panelGeo, mkMat(0xffffff, 0.52));
     this.debrisChunk = new DebrisSystem(scene, 170, chunkGeo, mkMat(0xffffff, 0.70));

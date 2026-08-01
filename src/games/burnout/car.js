@@ -59,6 +59,26 @@ const BEAM_MAT = () => new THREE.ShaderMaterial({
     }`,
 });
 
+/** Reverse triangle winding and normals so a shell renders inside-out on FrontSide. */
+function flipWinding(geo) {
+  const nrm = geo.getAttribute('normal');
+  if (nrm) { const a = nrm.array; for (let i = 0; i < a.length; i++) a[i] = -a[i]; nrm.needsUpdate = true; }
+  if (geo.index) {
+    const ix = geo.index.array;
+    for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; }
+    geo.index.needsUpdate = true;
+  } else {
+    for (const name of Object.keys(geo.attributes)) {
+      const at = geo.attributes[name], n = at.itemSize, a = at.array;
+      for (let i = 0; i < a.length; i += n * 3) {
+        for (let k = 0; k < n; k++) { const t = a[i + n + k]; a[i + n + k] = a[i + n * 2 + k]; a[i + n * 2 + k] = t; }
+      }
+      at.needsUpdate = true;
+    }
+  }
+  return geo;
+}
+
 export class Car {
   constructor(game, opts = {}) {
     this.game = game;
@@ -133,9 +153,11 @@ export class Car {
 
     // Dark inside-out shell so a rolling wreck never shows a lit interior of
     // painted livery through its own bodywork.
-    const interior = body.clone();
+    // Winding is flipped rather than using side: BackSide -- a BackSide
+    // variant is a whole extra shader program for one dark shell.
+    const interior = flipWinding(body.clone());
     const intMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0b0e, roughness: 0.9, metalness: 0.1, side: THREE.BackSide,
+      color: 0x0a0b0e, roughness: 0.9, metalness: 0.1,
     });
     this.interiorMesh = new THREE.Mesh(interior, intMat);
     this.interiorMesh.scale.setScalar(0.965);
@@ -509,6 +531,15 @@ export class Car {
     const g = this.game;
     const now = g.time;
     if (energy < 0.04) return;
+    // Arcade rule: a barrier is something you scrape and keep going. Continuous
+    // contact used to re-enter this function every frame, so holding a steering
+    // key into a wall ticked damage, hit-stop and shake at 60Hz and killed the
+    // run. Repeat wall contact inside the refractory window is free.
+    const sinceHit = now - (this.lastImpactTime ?? -99);
+    if (source === 'wall') {
+      if (sinceHit < 0.30) return 0;
+      energy *= 0.55;
+    }
     worldImpactToLocal(this.veh.body, worldPoint, worldDir, _lp, _ld);
     _lp.y += this.veh.cfg.comHeight;
     const rad = 0.7 + energy * 1.1;
@@ -526,7 +557,10 @@ export class Car {
         }
       }
     }
-    this.health = clamp(this.health - energy * (this.isPlayer ? 0.19 : 0.42), 0, 1);
+    const dmg = source === 'wall'
+      ? (this.isPlayer ? 0.055 : 0.24)
+      : (this.isPlayer ? 0.19 : 0.42);
+    this.health = clamp(this.health - energy * dmg, 0, 1);
     this.lastImpactTime = now;
 
     // vfx
@@ -842,8 +876,9 @@ export class Car {
     if (this.boostActive && !this.wrecked) {
       for (const e of this.exhausts) {
         _v.copy(e).applyMatrix4(this.inner.matrixWorld);
-        if (Math.random() < 0.8) this.game.vfx.fireBurst(_v, 1, 0.42);
-        if (Math.random() < 0.3) this.game.vfx.sparkBurst(_v, 2, veh.forward.clone().negate(), 0.3, 8);
+        if (Math.random() < 0.55) this.game.vfx.fireBurst(_v, 1, 0.50);
+        if (Math.random() < 0.5) this.game.vfx.sparkBurst(_v, 4, _v2.copy(veh.forward).negate(), 0.35, 18, [1.0, 0.66, 0.24]);
+        if (Math.random() < 0.35) this.game.vfx.smokePuff(_v, 1, veh.body.vel, 0.7, 0.10, 0.55);
       }
     }
 
@@ -863,12 +898,12 @@ export class Car {
         const f = this.flames[i];
         f.visible = on;
         if (!on) continue;
-        const flick = 0.78 + Math.sin(this.game.realTime * (44 + i * 9)) * 0.14 + Math.random() * 0.14;
-        f.scale.set(k * flick * 1.05, k * flick * 1.05, k * flick * (1.35 + this.game.boost * 1.25));
-        f.material.opacity = 0.55 + k * 0.45;
+        const flick = 0.82 + Math.sin(this.game.realTime * (44 + i * 9)) * 0.18 + Math.random() * 0.20;
+        f.scale.set(k * flick * 1.15, k * flick * 1.15, k * flick * (1.7 + this.game.boost * 1.6));
+        f.material.opacity = 0.72 + k * 0.28;
       }
       if (this.boostLight) {
-        this.boostLight.intensity = k * 90;
+        this.boostLight.intensity = k * 70;
       }
     }
 

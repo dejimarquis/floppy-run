@@ -92,19 +92,19 @@ export class World {
   }
 
   build() {
-    const M = (n) => performance.mark('w:' + n);
-    this.makeMaterials(); M('materials');
-    this.makeRoad(); M('road');
-    this.makeBarriers(); M('barriers');
-    this.makeTunnels(); M('tunnels');
-    this.makeCanyon(); M('canyon');
-    this.makeBridge(); M('bridge');
-    this.makeTerrain(); M('terrain');
-    this.makeCity(); M('city');
-    this.makeStreetFurniture(); M('furniture');
-    this.makeSkyline(); M('skyline');
-    this.makeRain(); M('rain');
-    this.mergeStaticProps(); M('merge');
+    this.makeMaterials();
+    this.makeRoad();
+    this.makeBarriers();
+    this.makeTunnels();
+    this.makeCanyon();
+    this.makeBridge();
+    this.makeTerrain();
+    this.makeCity();
+    this.makeStreetFurniture();
+    this.makeSkyline();
+    // No rain: this is a bright arcade racer, the particle sheet was invisible
+    // against a sunny sky and cost a whole shader program.
+    this.mergeStaticProps();
   }
 
   /**
@@ -259,7 +259,7 @@ export class World {
     };
 
     this.rockMat = new THREE.MeshStandardMaterial({
-      color: 0x2a2620, roughness: 0.95, metalness: 0.0, flatShading: true, envMapIntensity: 0.6,
+      color: 0x2a2620, roughness: 0.95, metalness: 0.0, envMapIntensity: 0.6,
     });
 
     this.steelMat = new THREE.MeshStandardMaterial({ color: 0x585f68, roughness: 0.45, metalness: 0.9, envMapIntensity: 1.0 });
@@ -347,9 +347,7 @@ export class World {
     // reflective barrier delineators (instanced emissive chips)
     const count = Math.floor(N / 6) * 2;
     const chip = new THREE.PlaneGeometry(0.22, 0.14);
-    const chipMat = new THREE.MeshBasicMaterial({
-      color: 0xffcc55, toneMapped: false, side: THREE.DoubleSide,
-    });
+    const chipMat = new THREE.MeshBasicMaterial({ color: 0xffcc55, toneMapped: false });
     const inst = new THREE.InstancedMesh(chip, chipMat, count);
     const f = makeFrame();
     const mtx = new THREE.Matrix4();
@@ -931,7 +929,7 @@ export class World {
 
     // emissive lamp heads
     const bulbGeo = new THREE.PlaneGeometry(1.3, 0.5);
-    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false, side: THREE.DoubleSide });
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false });
     const bulbInst = new THREE.InstancedMesh(bulbGeo, bulbMat, positions.length);
     positions.forEach((s, k) => {
       const p = s.p.clone().addScaledVector(s.right, 3.1).addScaledVector(s.up, 8.2);
@@ -1030,7 +1028,7 @@ export class World {
       if (!list.length) continue;
       const mat = new THREE.MeshStandardMaterial({
         map: signTexes[ti], emissive: 0xffffff, emissiveMap: signTexes[ti],
-        emissiveIntensity: 0.25, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide,
+        emissiveIntensity: 0.9, roughness: 0.7, metalness: 0.1,
       });
       const inst = new THREE.InstancedMesh(sgeo, mat, list.length);
       list.forEach((s, k) => {
@@ -1272,11 +1270,11 @@ export class World {
     if (this._glowTick % 6 === 0) this.updateLampGlow(camPos);
   }
 
-  setEnvironment(env) {
-    this.roadMat.envMap = env;
-    this.group.traverse((o) => {
-      if (o.material && o.material.isMeshStandardMaterial) o.material.envMap = env;
-    });
+  setEnvironment() {
+    // Deliberately a no-op: world props read `scene.environment`, which is
+    // additionally scaled by `scene.environmentIntensity`. Assigning `envMap`
+    // per material bypasses that scale and used to make the road reflect the
+    // sky ~6x hotter than everything else, washing the whole track to white.
   }
 }
 

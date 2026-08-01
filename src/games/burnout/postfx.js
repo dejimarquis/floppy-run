@@ -25,64 +25,56 @@ const QUAD_VERT = /* glsl */`
   void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
 `;
 
-// ---------------------------------------------------------------- bright
-const BrightShader = {
+// ------------------------------------------------- bright + blur (1 program)
+// Prefilter and blur share a single program: `uPre` switches the first pass
+// into threshold mode. Two shaders here would be two more compiled programs
+// for no visual gain.
+const BlurShader = {
   uniforms: {
     tDiffuse: { value: null },
+    uDir: { value: new THREE.Vector2(1, 0) },
     uTexel: { value: new THREE.Vector2() },
     uThreshold: { value: 0.9 },
     uClamp: { value: 8.0 },
     uExposure: { value: 0.3 },
+    uPre: { value: 0.0 },
   },
   vertexShader: QUAD_VERT,
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse;
-    uniform vec2 uTexel;
-    uniform float uThreshold, uClamp, uExposure;
+    uniform vec2 uDir, uTexel;
+    uniform float uThreshold, uClamp, uExposure, uPre;
     varying vec2 vUv;
     vec3 tap(vec2 o){
       // Thresholding happens in EXPOSED space. Doing it on raw scene HDR meant
       // a 2..20 range sky passed the threshold wholesale and the blurred result
-      // added several units of light back onto the road, which is what turned
-      // the whole frame into milk.
+      // added several units of light back onto the road.
       vec3 c = texture2D(tDiffuse, vUv + o).rgb * uExposure;
       float m = max(max(c.r, c.g), c.b);
       if (m > uClamp) c *= uClamp / m;
       return c;
     }
     void main(){
-      vec3 c = (tap(uTexel * vec2(-1.0, -1.0)) + tap(uTexel * vec2(1.0, -1.0))
-              + tap(uTexel * vec2(-1.0,  1.0)) + tap(uTexel * vec2(1.0,  1.0))) * 0.25;
-      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      float k = smoothstep(uThreshold, uThreshold * 2.0, l);
-      // keep the hue of the source so neon signs bloom coloured, not white
-      gl_FragColor = vec4(c * k, 1.0);
-    }
-  `,
-};
-
-// ------------------------------------------------------------------ blur
-const BlurShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    uDir: { value: new THREE.Vector2(1, 0) },
-  },
-  vertexShader: QUAD_VERT,
-  fragmentShader: /* glsl */`
-    uniform sampler2D tDiffuse;
-    uniform vec2 uDir;
-    varying vec2 vUv;
-    void main(){
-      // 9-tap gaussian, linear-sampled pairs
-      vec3 c = texture2D(tDiffuse, vUv).rgb * 0.227027;
-      c += (texture2D(tDiffuse, vUv + uDir * 1.3846).rgb
-          + texture2D(tDiffuse, vUv - uDir * 1.3846).rgb) * 0.316216;
-      c += (texture2D(tDiffuse, vUv + uDir * 3.2308).rgb
-          + texture2D(tDiffuse, vUv - uDir * 3.2308).rgb) * 0.070270;
+      vec3 c;
+      if (uPre > 0.5) {
+        c = (tap(uTexel * vec2(-1.0, -1.0)) + tap(uTexel * vec2(1.0, -1.0))
+           + tap(uTexel * vec2(-1.0,  1.0)) + tap(uTexel * vec2(1.0,  1.0))) * 0.25;
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        // keep the hue of the source so neon signs bloom coloured, not white
+        c *= smoothstep(uThreshold, uThreshold * 2.0, l);
+      } else {
+        // 9-tap gaussian, linear-sampled pairs
+        c = texture2D(tDiffuse, vUv).rgb * 0.227027;
+        c += (texture2D(tDiffuse, vUv + uDir * 1.3846).rgb
+            + texture2D(tDiffuse, vUv - uDir * 1.3846).rgb) * 0.316216;
+        c += (texture2D(tDiffuse, vUv + uDir * 3.2308).rgb
+            + texture2D(tDiffuse, vUv - uDir * 3.2308).rgb) * 0.070270;
+      }
       gl_FragColor = vec4(c, 1.0);
     }
   `,
 };
+
 
 // ------------------------------------------------------------- composite
 export const GradeShader = {
@@ -101,9 +93,9 @@ export const GradeShader = {
     uAspect: { value: 1.777 },
     uGrain: { value: 0.010 },
     uVignette: { value: 0.72 },
-    uSat: { value: 1.30 },
+    uSat: { value: 1.46 },
     uTint: { value: new THREE.Color(1.02, 1.0, 1.04) },
-    uBlack: { value: 0.016 },                          // hard black point
+    uBlack: { value: 0.028 },                          // hard black point
     uHero: { value: new THREE.Vector2(0.5, 0.42) },    // hero car in screen uv
     uHeroR: { value: 0.20 },                           // hero protection radius
     uShockC: { value: new THREE.Vector2(0.5, 0.5) },   // impact shockwave centre
@@ -200,7 +192,7 @@ export const GradeShader = {
         float spokeMask = smoothstep(0.20, 0.95, rad) * heroMask;
         col = mix(col, streak, boost * 0.40 * smoothstep(0.08, 0.70, rad) * heroMask);
         col += fil * boost * (0.18 + comb * 0.46) * smoothstep(0.12, 0.92, rad) * heroMask;
-        col += vec3(0.60, 0.78, 1.0) * spoke * spokeMask * boost * 2.6 / max(0.05, uExposure);
+        col += vec3(0.60, 0.78, 1.0) * spoke * spokeMask * boost * 1.55 / max(0.05, uExposure);
         col += vec3(0.34, 0.52, 1.0) * boost * 0.06 * smoothstep(0.40, 1.10, rad) * heroMask;
       }
 
@@ -327,8 +319,8 @@ export class PostFX {
     this.rtB = new THREE.WebGLRenderTarget(bw, bh, rtOpts);
 
     this.quad = new Quad();
-    this.brightMat = makeMat(BrightShader);
     this.blurMat = makeMat(BlurShader);
+    this.brightMat = this.blurMat;
     this.gradeMat = makeMat(GradeShader, {
       TAPS: quality.tier === 'low' ? 6 : (quality.tier === 'med' ? 8 : 10),
     });
@@ -369,8 +361,10 @@ export class PostFX {
   }
 
   _blur(src, dst, dx, dy) {
-    this.blurMat.uniforms.tDiffuse.value = src.texture;
-    this.blurMat.uniforms.uDir.value.set(dx / this.bw, dy / this.bh);
+    const u = this.blurMat.uniforms;
+    u.tDiffuse.value = src.texture;
+    u.uPre.value = 0;
+    u.uDir.value.set(dx / this.bw, dy / this.bh);
     this.quad.draw(this.renderer, this.blurMat, dst);
   }
 
@@ -394,9 +388,11 @@ export class PostFX {
     }
 
     // 2. bright pass -> 1/4 res
-    this.brightMat.uniforms.tDiffuse.value = this.sceneRT.texture;
-    this.brightMat.uniforms.uExposure.value = this.u.uExposure.value;
-    this.quad.draw(r, this.brightMat, this.rtA);
+    const bu = this.blurMat.uniforms;
+    bu.tDiffuse.value = this.sceneRT.texture;
+    bu.uExposure.value = this.u.uExposure.value;
+    bu.uPre.value = 1;
+    this.quad.draw(r, this.blurMat, this.rtA);
 
     // 3. separable blur, two widening iterations for a soft arcade halo
     const rad = this._radius || 1;
@@ -414,7 +410,7 @@ export class PostFX {
 
   dispose() {
     this.sceneRT.dispose(); this.rtA.dispose(); this.rtB.dispose();
-    this.brightMat.dispose(); this.blurMat.dispose(); this.gradeMat.dispose();
+    this.blurMat.dispose(); this.gradeMat.dispose();
     this.quad.dispose();
   }
 }

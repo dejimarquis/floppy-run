@@ -154,6 +154,8 @@ export class Vehicle {
     this.finalDrive = 3.6;
     this.shiftTimer = 0;
     this.wallHit = 0;
+    this.wallContact = 0;
+    this.wallSide = 0;
     this.lastWallImpact = 0;
     this.onWallHit = null;
     this.boostAmount = 0;
@@ -198,7 +200,13 @@ export class Vehicle {
     // steering with speed-sensitive reduction
     const spd = b.vel.length();
     const steerLimit = cfg.maxSteer * (0.30 + 0.70 / (1 + spd * 0.024));
-    const target = inp.steer * steerLimit;
+    let target = inp.steer * steerLimit;
+    // While scraping a barrier, steering further into it only scrubs the tyres
+    // and stalls the car. Keep some authority so the player can still fight
+    // free, but stop a held direction key from pinning them at walking pace.
+    if (this.wallContact > 0 && Math.sign(inp.steer) === this.wallSide && inp.steer !== 0) {
+      target *= 0.22;
+    }
     const rate = 9.0;
     this.steerAngle += clamp(target - this.steerAngle, -rate * dt, rate * dt);
 
@@ -401,11 +409,35 @@ export class Vehicle {
       // positional correction
       b.pos.addScaledVector(nrm, pen * Math.min(1, dt * 55));
       const vn = b.vel.dot(nrm);
+      // Arcade wall-ride, applied on every contact frame (not just while
+      // grinding). Left alone, the scrape torque pivots the car nose-in, the
+      // tyres then scrub sideways against the barrier and full throttle nets
+      // walking pace -- which is exactly the "the game is fighting me" feeling
+      // we are trying to remove. Burnout snaps you parallel and lets you slide;
+      // so do we: bleed the induced spin, yaw the chassis back along the wall,
+      // and redirect the existing speed rather than deleting it.
+      this.wallSide = side;
+      this.wallContact = 0.14;
+      b.ang.y *= 1 - Math.min(0.85, dt * 8);
+      const fw = this.forward;
+      const dirSgn = fw.dot(f.tan) >= 0 ? 1 : -1;
+      _v4w.copy(f.tan).multiplyScalar(dirSgn);
+      const yawErr = Math.atan2(
+        fw.x * _v4w.z - fw.z * _v4w.x,
+        fw.x * _v4w.x + fw.z * _v4w.z);
+      b.ang.y += yawErr * Math.min(1, dt * 10) * 7;
+      const tanSpeed = b.vel.dot(f.tan);
+      const horiz = Math.hypot(b.vel.x, b.vel.z);
+      if (horiz > 0.5) {
+        _v2.copy(f.tan).multiplyScalar(horiz * (tanSpeed >= 0 ? 1 : -1));
+        _v2.y = b.vel.y;
+        b.vel.lerp(_v2, Math.min(1, dt * 6.0));
+      }
+
       if (vn < 0) {
         const j = -vn * (1 + 0.32) * this.cfg.mass;
         b.vel.addScaledVector(nrm, j / this.cfg.mass);
-        // scrape torque
-        b.applyAngularImpulse(_v2.set(0, -side * Math.abs(vn) * 30, 0));
+        b.applyAngularImpulse(_v2.set(0, -side * Math.abs(vn) * 10, 0));
         const impact = Math.abs(vn);
         if (impact > 3 && this.onWallHit) {
           const cp = _v3.copy(b.pos).addScaledVector(nrm, -halfW);
@@ -413,8 +445,7 @@ export class Vehicle {
         }
         this.lastWallImpact = impact;
       } else {
-        // grinding
-        const tangentSpeed = Math.abs(b.vel.dot(f.tan));
+        const tangentSpeed = Math.abs(tanSpeed);
         this.wallHit = Math.min(1, tangentSpeed / 40);
         if (this.onWallHit && tangentSpeed > 12) {
           const cp = _v3.copy(b.pos).addScaledVector(nrm, -halfW);
@@ -424,6 +455,7 @@ export class Vehicle {
     } else {
       this.wallHit *= 0.9;
     }
+    this.wallContact = Math.max(0, (this.wallContact || 0) - dt);
     void ROAD_HALF; void VERGE;
   }
 
@@ -458,6 +490,7 @@ const _UP = new THREE.Vector3(0, 1, 0);
 const _RIGHT = new THREE.Vector3(1, 0, 0);
 const _fwdOut = new THREE.Vector3(), _upOut = new THREE.Vector3(), _rightOut = new THREE.Vector3();
 const _rollPt = new THREE.Vector3();
+const _v4w = new THREE.Vector3();
 const _frameTmp = {
   pos: new THREE.Vector3(), tan: new THREE.Vector3(),
   right: new THREE.Vector3(), up: new THREE.Vector3(), curv: 0, bank: 0, kind: 'open',

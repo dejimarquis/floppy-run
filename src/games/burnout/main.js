@@ -17,6 +17,7 @@ import { RNG, clamp } from './rng.js';
 import * as TX from './textures.js';
 
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _up = new THREE.Vector3();
+const _v0 = new THREE.Vector3();
 const _frame = {
   pos: new THREE.Vector3(), tan: new THREE.Vector3(), right: new THREE.Vector3(),
   up: new THREE.Vector3(), curv: 0, bank: 0, kind: 'open',
@@ -34,7 +35,7 @@ const DT_MAX_STEPS = 60;
 const DT_STEP_CAP = 0.02;
 const DT_HITCH_CAP = 1.0;   // beyond this we assume a stall, not a slow frame
 
-const EXPOSURE = 0.17;
+const EXPOSURE = 0.46;
 const SKY_INTENSITY = 1.0;
 
 const TIERS = {
@@ -84,11 +85,11 @@ function detectTier() {
 }
 
 const RIVAL_DEFS = [
-  { name: 'VIPER', color: 0x1e88ff, style: 'super' },
-  { name: 'HAVOC', color: 0x22d37a, style: 'muscle' },
-  { name: 'ONYX', color: 0xe8e9ee, style: 'sport' },
-  { name: 'RAZOR', color: 0xff8c1a, style: 'super' },
-  { name: 'BRUTE', color: 0x9b30ff, style: 'muscle' },
+  { name: 'VIPER', color: 0x00a6ff, style: 'super' },
+  { name: 'HAVOC', color: 0x00f07a, style: 'muscle' },
+  { name: 'ONYX', color: 0xffd400, style: 'sport' },
+  { name: 'RAZOR', color: 0xff6a00, style: 'super' },
+  { name: 'BRUTE', color: 0xc026ff, style: 'muscle' },
 ];
 
 class Game {
@@ -107,6 +108,11 @@ class Game {
     this.paused = false;
     // Latches true the first time the player steers; retires the autopilot.
     this.userDriving = false;
+    // Latched separately: steering must not retire the throttle assist.
+    this.userThrottling = false;
+    this.stuckT = 0;
+    this.unsticking = false;
+    this.unstickT = 0;
     this.frames = 0;
     // Frame timing is measured from UNCLAMPED wall-clock deltas so the reported
     // numbers can never be flattered by the simulation's step clamp.
@@ -126,6 +132,7 @@ class Game {
     this._camBeat = -1;
     this._camCut = false;
     this.shockT = 0;
+    this.pendingBlasts = [];
     this.shockPos = new THREE.Vector3();
     this.wetness = 1.0;
     this.shake = 0;
@@ -157,16 +164,12 @@ class Game {
     this.idleTimer = 0;
     this.muted = false;
 
-    performance.mark('rendererStart');
     this.initRenderer();
-    performance.mark('rendererEnd');
     const _t = () => performance.now();
     const t0 = _t();
     this.initScene();
-    performance.mark('sceneEnd');
     const t1 = _t();
     this.initGameObjects();
-    performance.mark('objectsEnd');
     const t2 = _t();
     this.initInput();
     this.initAPI();
@@ -190,7 +193,11 @@ class Game {
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = q.shadows;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // NOT PCFSoftShadowMap: three deprecated it and WebGLShadowMap.render()
+    // silently rewrites the type on the first shadow pass -- which happens
+    // AFTER renderer.compile(), invalidating every program we just built and
+    // forcing a full recompile storm on frame 1.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.info.autoReset = false;
     this.renderer.domElement.style.display = 'block';
     this.root.appendChild(this.renderer.domElement);
@@ -268,8 +275,18 @@ class Game {
     const envRT = pmrem.fromCubemap(cubeRT.texture);
     this.envMap = envRT.texture;
     this.scene.environment = this.envMap;
-    if ('environmentIntensity' in this.scene) this.scene.environmentIntensity = SKY_INTENSITY * 0.16;
+    if ('environmentIntensity' in this.scene) this.scene.environmentIntensity = SKY_INTENSITY * 0.42;
     pmrem.dispose();
+    // The sky dome only exists to bake the cube map. Releasing it now frees
+    // its shader programs -- they would otherwise sit in the cache forever.
+    skyScene.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (o.material.map) o.material.map.dispose();
+        o.material.dispose();
+      }
+    });
+    skyScene.clear();
 
     // ---- fog
     this.scene.fog = new THREE.FogExp2(new THREE.Color(0x7d90a8), 0.00034);
@@ -295,7 +312,7 @@ class Game {
     }
     this.scene.add(this.sun, this.sun.target);
 
-    this.hemi = new THREE.HemisphereLight(0x9dbbe4, 0x33302c, 0.10);
+    this.hemi = new THREE.HemisphereLight(0x9dbbe4, 0x33302c, 0.55);
     this.scene.add(this.hemi);
     // NOTE: there is deliberately no fill light. An unshadowed second
     // directional is the fastest way to erase a cast shadow; the sun plus a
@@ -327,28 +344,22 @@ class Game {
   initGameObjects() {
     const q = this.quality;
     this.track = new Track(this.seedValue);
-    performance.mark('trackEnd');
     this.world = new World(this.scene, this.track, { quality: q, rng: new RNG(this.seedValue ^ 0x9e37), renderer: this.renderer });
-    performance.mark('worldEnd');
     if (this.world.setEnvironment) this.world.setEnvironment(this.envMap);
     this.vfx = new VFX(this.scene, q);
     if (this.vfx.setEnvironment) this.vfx.setEnvironment(this.envMap);
-    performance.mark('vfxEnd');
     this.audio = new Audio();
     this.hud = new HUD(this.root);
     this.hud.setTrack(this.track);
 
-    performance.mark('hudEnd');
     this.traffic = new Traffic(this, q.traffic);
     this.traffic.setEnvironment(this.envMap);
-    performance.mark('trafficEnd');
 
     this.player = new Car(this, {
-      isPlayer: true, style: 'super', color: 0xd7142a, name: 'YOU',
+      isPlayer: true, style: 'super', color: 0xff1330, name: 'YOU',
     });
     this.player.id = 'P';
     this.player.setEnvironment(this.envMap);
-    performance.mark('playerEnd');
     this.cars = [this.player];
     this.ais = [];
     this.attractAI = new RacerAI(this.player, this, { aggression: 0.34, skill: 0.99 });
@@ -366,7 +377,6 @@ class Game {
       this.ais.push(ai);
     }
 
-    performance.mark('rivalsEnd');
     this.resetRace();
     this.post = new PostFX(this.renderer, this.scene, this.camera, q);
 
@@ -676,21 +686,46 @@ class Game {
     this.addScore(pts);
     this.boost = 1;
     this.audio.takedownSting();
+
+    // ---- the payoff. A takedown is the whole point of the game, so it gets a
+    // second, much bigger detonation on top of the wreck's own explosion, a
+    // smoke column you can see from the next corner and a full-screen flash.
+    const wp = car.veh.body.pos, wv = car.veh.body.vel;
+    const pc = car.paint.color;
+    this.vfx.explosion(wp, wv, 2.1, [pc.r, pc.g, pc.b]);
+    this.vfx.smokeColumn(wp, 44, 12);
+    this.vfx.fireBurst(wp, 46, 2.2);
+    this.vfx.flashAt(wp, 7.0, 0.26, [3.4, 2.2, 0.9]);
+    this.vfx.sparkBurst(wp, 260, null, 1.6, 30, [1.0, 0.86, 0.45]);
+    this.shockAt(wp, 1.2);
+    if (this.post) {
+      this.post.u.uFlash.value = 0.85;
+      this.post.u.uFlashCol.value.setRGB(1.0, 0.90, 0.62);
+    }
+    // A delayed secondary keeps the slow-mo replay alive instead of peaking on
+    // frame one and then showing a static wreck for two seconds.
+    this.pendingBlasts.push({ t: 0.30, p: wp.clone(), c: [pc.r, pc.g, pc.b] });
+    this.pendingBlasts.push({ t: 0.68, p: wp.clone(), c: [pc.r, pc.g, pc.b] });
+
+    this.hud.scorePop(`+${pts.toLocaleString()}`, '#ffdf4a', true);
     if (this.cineLockCam) return;   // a boost/near-miss capture keeps its camera
-    this.hud.callout('TAKEDOWN', `${car.name} WRECKED  ·  +${pts.toLocaleString()}`, '#ffd23f');
+    this.hud.callout('TAKEDOWN!', `${car.name} wrecked  ·  +${pts.toLocaleString()}`, '#ffd23f');
     if (this.chain > 1) this.hud.showChain(`${this.chain}x TAKEDOWN CHAIN`);
-    this.slowmo(0.24, 2.6);
+    // Hard, but short. A 0.14x scale held for ~3s of wall time advances barely
+    // 0.4s of game time -- the replay stops being a replay and becomes a pause,
+    // and the player is dumped back out having lost all their speed.
+    this.slowmo(0.17, 1.7);
     this.takedownCamT = TAKEDOWN_CAM_LEN;
     this._camBeat = -1;
     this.takedownTarget = car;
     this.prevCam = this.cameraMode === 'crashcam' ? 'chase' : this.cameraMode;
     this.cameraMode = 'crashcam';
     this.crashCamAngle = this.rng.range(0, Math.PI * 2);
-    this.impactShake(0.85);
-    this.hitStop(0.09);
+    this.impactShake(1.5);
+    this.hitStop(0.17);
     // Ramming a rival hard bleeds the hero's speed; it also keeps both cars
     // inside the replay framing instead of the hero rocketing out of shot.
-    this.player.veh.body.vel.multiplyScalar(0.42);
+    this.player.veh.body.vel.multiplyScalar(0.62);
   }
 
   registerNearMiss(strength) {
@@ -699,9 +734,13 @@ class Game {
     const pts = Math.floor(120 * strength);
     this.addScore(pts);
     this.audio.whoosh(clamp(strength, 0.4, 1.4));
-    if (this.nearMissCallT === undefined || this.time - this.nearMissCallT > 1.2) {
+    // Near misses are frequent, so they get a flying score chip rather than the
+    // full-screen slam -- that stays reserved for takedowns, which keeps the
+    // big typography meaningful instead of wallpaper.
+    this.hud.scorePop(`+${pts}`, '#7fe9ff');
+    if (this.nearMissCallT === undefined || this.time - this.nearMissCallT > 2.4) {
       this.nearMissCallT = this.time;
-      this.hud.callout('NEAR MISS', `+${pts}`, '#7fe9ff');
+      this.hud.showChain('NEAR MISS');
     }
     this.slowmo(0.68, 0.16);
   }
@@ -725,6 +764,59 @@ class Game {
       this.timers.splice(i, 1);
       try { tm.fn(); } catch (e) { console.error('[crashout] timer', e); }
     }
+  }
+
+  // Last-resort safety net, run from the render loop on WALL time so neither
+  // slow-mo nor any early-return in the input path can defeat it. A racing game
+  // that leaves a 10-year-old parked and motionless has simply stopped being a
+  // game, so after two seconds of genuine standstill the car is put back on the
+  // racing line at speed. In normal play this never fires.
+  stuckWatchdog(dtWall) {
+    const p = this.player;
+    if (!p || p.wrecked || this.crashMode || !this.playerControlled || this.paused || this.time < 4) {
+      this.stuckT = 0; this.unsticking = false; this.unstickT = 0;
+      return;
+    }
+    const veh = p.veh;
+    const braking = this.keys.ArrowDown || this.keys.KeyS;
+
+    if (!braking && veh.speed < 7.0) this.stuckT += dtWall; else this.stuckT = 0;
+    if (this.stuckT > 0.18) this.unsticking = true;
+    if (this.unsticking && veh.speed > 22) { this.unsticking = false; this.unstickT = 0; }
+    if (!this.unsticking) return;
+
+    this.unstickT += dtWall;
+    const f = this.track.frameAt(veh.trackS, _frame);
+    const b = veh.body;
+
+    // Escalation: half a second of hard assist without result means the car is
+    // geometrically wedged and no amount of force will free it, so put it back
+    // on the racing line at speed. Every arcade racer has this recovery; the
+    // alternative is a player staring at a stationary car.
+    if (this.unstickT > 0.5) {
+      const s2 = this.track.wrapS(veh.trackS + 8);
+      const fr = this.track.frameAt(s2, _frame);
+      veh.reset(s2, 0, this.track);
+      b.vel.copy(fr.tan).multiplyScalar(28);
+      this.unsticking = false; this.unstickT = 0; this.stuckT = 0;
+      this.hud.showChain('RECOVERED');
+      return;
+    }
+
+    // Hard guarantee rather than a nudge: drive the along-track component up to
+    // a rolling speed and walk the car back toward the carriageway. A wedged car
+    // has no traction to convert a gentle push into motion, so a soft assist
+    // just leaves it grinding at walking pace forever.
+    const inward = -Math.sign(veh.trackU || 1);
+    // Set, don't accumulate: a genuinely wedged car has the solver delete any
+    // velocity we add within the same frame, so an incremental ramp never wins.
+    const tanV = b.vel.dot(f.tan);
+    if (tanV < 22) { b.vel.addScaledVector(f.tan, 22 - tanV); }
+    b.vel.addScaledVector(f.right, inward * dtWall * 26);
+    b.pos.addScaledVector(f.right, inward * dtWall * 5.5);
+    const fw = veh.forward;
+    b.ang.y += Math.atan2(fw.x * f.tan.z - fw.z * f.tan.x,
+                          fw.x * f.tan.x + fw.z * f.tan.z) * dtWall * 16;
   }
 
   slowmo(scale, duration) {
@@ -928,24 +1020,45 @@ class Game {
     // difficulty aid; one that steers for you is the game playing itself.
     let assistSteer = 0;
     let assistBrake = 0;
+    let assistThrottle = 0;
     if (!p.wrecked) {
       this.attractAI.update(dt);
       assistSteer = inp.steer;
       assistBrake = inp.brake;
+      assistThrottle = inp.throttle;
       if (this.userDriving) this.attractAI.laneTimer = 0;
     }
 
-    inp.throttle = (k.ArrowUp || k.KeyW) ? 1 : 0;
-    inp.brake = (k.ArrowDown || k.KeyS) ? 1 : 0;
+    const keyThrottle = (k.ArrowUp || k.KeyW) ? 1 : 0;
+    const keyBrake = (k.ArrowDown || k.KeyS) ? 1 : 0;
+    // The other half of the autopilot bug. Steering used to retire the whole
+    // assist including its throttle, so a player who only steered watched the
+    // car coast to a dead stop under them (measured: 46.6 -> 0.1 m/s in 4s).
+    // Throttle assist now retires only when the player uses throttle or brake
+    // themselves; until then it keeps the car rolling. Nothing in an arcade
+    // racer should ever end with the car parked and the player still holding a key.
+    if (keyThrottle || keyBrake) this.userThrottling = true;
+    inp.throttle = this.userThrottling ? keyThrottle : Math.max(keyThrottle, assistThrottle);
+    inp.brake = keyBrake;
     // Corner-entry safety net: never overrides a deliberate brake, and only
     // scrubs enough to keep the car on the island.
     if (!inp.brake && assistBrake > 0.02) {
-      const w = this.userDriving ? 0.55 : 0.9;
+      // Speed-gated. The racing line wants to brake for a corner regardless of
+      // how fast you are actually going, so a car crawling out of an incident
+      // was held at walking pace by its own safety net with the throttle down.
+      // Below ~14 m/s nothing needs scrubbing; fade it in above that.
+      const spdGate = clamp((p.veh.speed - 14) / 16, 0, 1);
+      const w = (this.userDriving ? 0.55 : 0.9) * spdGate;
       inp.brake = Math.min(1, assistBrake * w);
       inp.throttle *= 1 - clamp(assistBrake, 0, 1) * 0.85 * w;
     }
     inp.steer = this.userDriving ? manualSteer : assistSteer;
     inp.handbrake = k.Space ? 1 : 0;
+
+    // Recovery assist (see stuckWatchdog, which runs on wall time): while it is
+    // engaged the throttle is held open. Steering input is deliberately left
+    // untouched, so the player never feels the wheel go light.
+    if (this.unsticking && !keyBrake) { inp.throttle = Math.max(inp.throttle, 0.85); inp.brake = 0; }
 
     let wantBoost = (k.ShiftLeft || k.ShiftRight);
     if (this.forceBoost > 0) { this.forceBoost -= dt; wantBoost = true; }
@@ -1182,8 +1295,10 @@ class Game {
 
     this.shake = Math.max(0, this.shake - dt * this.shakeDecay);
     const sh = this.shake * this.shake;
-    const rumble = (spd01 > 0.72 ? (spd01 - 0.72) * 0.5 : 0) + (this.boosting ? 0.2 : 0);
-    const amp = sh * 0.5 + rumble * 0.08;
+    // Boost has to be felt, not just seen: the rig gets a hard high-frequency
+    // rumble the instant it lights, on top of the FOV punch and speed lines.
+    const rumble = (spd01 > 0.72 ? (spd01 - 0.72) * 0.5 : 0) + (this.boosting ? 0.95 : 0);
+    const amp = sh * 0.5 + rumble * 0.14;
     this.shakeOffset.set(
       (Math.random() - 0.5) * amp,
       (Math.random() - 0.5) * amp,
@@ -1248,7 +1363,7 @@ class Game {
     const target = inTun ? this.fogBase * 2.6 : this.fogBase;
     this.scene.fog.density += (target - this.scene.fog.density) * 0.05;
     this.sun.intensity += ((inTun ? 0.30 : 8.2) - this.sun.intensity) * 0.06;
-    this.hemi.intensity += ((inTun ? 0.06 : 0.10) - this.hemi.intensity) * 0.06;
+    this.hemi.intensity += ((inTun ? 0.34 : 0.55) - this.hemi.intensity) * 0.06;
   }
 
 
@@ -1269,6 +1384,20 @@ class Game {
     this.updateRacePositions();
 
     for (const c of this.cars) c.update(dt);
+    // Delayed secondary detonations from takedowns / big wrecks.
+    for (let i = this.pendingBlasts.length - 1; i >= 0; i--) {
+      const b = this.pendingBlasts[i];
+      b.t -= dt;
+      if (b.t > 0) continue;
+      this.pendingBlasts.splice(i, 1);
+      this.vfx.fireBurst(b.p, 34, 1.9);
+      this.vfx.debrisBurst(b.p, 46, _v0.set(0, 5, 0), b.c);
+      this.vfx.sparkBurst(b.p, 150, null, 1.5, 26, [1.0, 0.78, 0.34]);
+      this.vfx.smokePuff(b.p, 16, _v0.set(0, 3, 0), 2.6, 0.12, 3.0);
+      this.vfx.flashAt(b.p, 3.4, 0.16, [2.6, 1.7, 0.7]);
+      this.shockAt(b.p, 0.8);
+      if (this.post) this.post.u.uFlash.value = Math.max(this.post.u.uFlash.value, 0.34);
+    }
     this.vfx.update(dt, this._groundFn, this.camera.position);
 
     if (this.chainTimer > 0) {
@@ -1334,6 +1463,7 @@ class Game {
       this.simAccum = 0;
       this.simDt = 0;
     }
+    this.stuckWatchdog(dtWall);
     this.drainTimers(dtWall);
     this.updateCamera(dtWall);
     this.updateLighting();
@@ -1418,9 +1548,7 @@ const _hp = new THREE.Vector3();
 
 // ------------------------------------------------------------------- boot
 const root = document.getElementById('app') || document.body;
-performance.mark('gameStart');
 const game = new Game(root);
-performance.mark('gameEnd');
 game._groundFn = (x, z) => {
   const s = game.track.surface(x, z, game.player.veh.hint);
   return s ? s.y : 0;
@@ -1501,11 +1629,9 @@ let firstFrame = true;
 // The bind matters: program cache keys carry the output colour space, and the
 // game only ever renders the scene into the HDR post target, so compiling with
 // the canvas bound would have produced a throwaway program for every material.
-performance.mark('compileStart');
 game.renderer.setRenderTarget(game.post.sceneRT);
 game.renderer.compile(game.scene, game.camera);
 game.renderer.setRenderTarget(null);
-performance.mark('compileEnd');
 // Refresh shadows on a cadence rather than every frame.
 game.renderer.shadowMap.autoUpdate = false;
 game.renderer.shadowMap.needsUpdate = true;
@@ -1532,7 +1658,6 @@ function loop() {
   }
   if (firstFrame) {
     firstFrame = false;
-    performance.mark('firstFrameEnd');
     requestAnimationFrame(() => { window.__READY__ = true; });
   }
   requestAnimationFrame(loop);
