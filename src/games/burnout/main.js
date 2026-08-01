@@ -105,6 +105,8 @@ class Game {
     this.slowmoT = 0;
     this.hitStopT = 0;
     this.paused = false;
+    // Latches true the first time the player steers; retires the autopilot.
+    this.userDriving = false;
     this.frames = 0;
     // Frame timing is measured from UNCLAMPED wall-clock deltas so the reported
     // numbers can never be flattered by the simulation's step clamp.
@@ -859,29 +861,35 @@ class Game {
     }
 
     const manualSteer = (k.ArrowRight || k.KeyD ? 1 : 0) - (k.ArrowLeft || k.KeyA ? 1 : 0);
-    // Steering assist: with no lateral input the racing-line controller keeps the
-    // car pointed down the road, so throttle-only play (and the shot harness)
-    // still reads as a race rather than a barrier scrape. Any manual input wins.
-    let assist = 0;
+    // Once the player steers, the racing-line autopilot stops steering for them
+    // -- permanently. Previously it re-engaged whenever the stick was centred and
+    // disengaged the instant a key went down, which ALSO cut the corner-entry
+    // braking, so tapping left sent the car into the first barrier at full speed
+    // (measured: 33.9 -> 1.6 m/s, health 1.0 -> 0.66).
+    if (manualSteer !== 0) this.userDriving = true;
+
+    // The racing line still runs every frame, but only ever contributes braking
+    // once the player has taken over. A safety net that scrubs speed is a
+    // difficulty aid; one that steers for you is the game playing itself.
+    let assistSteer = 0;
     let assistBrake = 0;
-    if (manualSteer === 0 && !p.wrecked) {
+    if (!p.wrecked) {
       this.attractAI.update(dt);
-      assist = inp.steer;
+      assistSteer = inp.steer;
       assistBrake = inp.brake;
-    } else this.attractAI.laneTimer = 0;
+      if (this.userDriving) this.attractAI.laneTimer = 0;
+    }
 
     inp.throttle = (k.ArrowUp || k.KeyW) ? 1 : 0;
     inp.brake = (k.ArrowDown || k.KeyS) ? 1 : 0;
-    // Corner-entry assist. Throttle-only play (and every screenshot harness
-    // that just holds ArrowUp) used to arrive at the first hairpin at 260km/h
-    // with the brake pedal untouched, so the "race" footage was a car lying on
-    // its roof in the scenery. When the player is not steering, the racing-line
-    // controller is allowed to scrub speed as well as aim.
-    if (manualSteer === 0 && !inp.brake && assistBrake > 0.02) {
-      inp.brake = Math.min(1, assistBrake * 0.9);
-      inp.throttle *= 1 - clamp(assistBrake, 0, 1) * 0.85;
+    // Corner-entry safety net: never overrides a deliberate brake, and only
+    // scrubs enough to keep the car on the island.
+    if (!inp.brake && assistBrake > 0.02) {
+      const w = this.userDriving ? 0.55 : 0.9;
+      inp.brake = Math.min(1, assistBrake * w);
+      inp.throttle *= 1 - clamp(assistBrake, 0, 1) * 0.85 * w;
     }
-    inp.steer = manualSteer !== 0 ? manualSteer : assist;
+    inp.steer = this.userDriving ? manualSteer : assistSteer;
     inp.handbrake = k.Space ? 1 : 0;
 
     let wantBoost = (k.ShiftLeft || k.ShiftRight);
@@ -1428,12 +1436,30 @@ if (forcedEvent) {
 
 let last = performance.now();
 let firstFrame = true;
+
+// Compile all shader programs up front. Three.js otherwise compiles lazily on
+// first render of each material, stuttering once per new object type entering
+// view -- a major cause of the "lag" felt during the opening seconds.
+game.renderer.compile(game.scene, game.camera);
+// Refresh shadows on a cadence rather than every frame.
+game.renderer.shadowMap.autoUpdate = false;
+game.renderer.shadowMap.needsUpdate = true;
+let shadowTick = 0;
+
+// Don't run (or bank a simulation backlog) while the tab is hidden.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) game.paused = true;
+  else { game.paused = false; last = performance.now(); }
+});
+
 function loop() {
   const now = performance.now();
   // Raw, unclamped wall-clock delta. Game.frame() owns all clamping so that the
   // reported frame timings are the real ones.
   const dt = Math.max(0.0002, (now - last) / 1000 || 0.016);
   last = now;
+  shadowTick++;
+  game.renderer.shadowMap.needsUpdate = shadowTick % 3 === 0;
   try {
     game.frame(dt);
   } catch (err) {

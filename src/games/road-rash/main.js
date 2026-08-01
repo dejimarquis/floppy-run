@@ -1076,6 +1076,11 @@ const frameLog = new Float32Array(240);
 let frameLogI = 0;
 let frameLogN = 0;
 let last = performance.now();
+// Fixed simulation timestep (120Hz) decoupled from render rate.
+const SIM_DT = 1 / 120;
+const SIM_MAX_STEPS = 8;
+let simAcc = 0;
+let shadowTick = 0;
 let readySignalled = false;
 let lastCalls = 0;
 let lastTris = 0;
@@ -1297,6 +1302,9 @@ function render(now) {
   }
   renderer.info.autoReset = false;
   renderer.info.reset();
+  // Refresh the shadow map on a cadence rather than every frame (see boot).
+  shadowTick++;
+  renderer.shadowMap.needsUpdate = shadowTick % 3 === 0;
   // measurement uses wallDt; simulation uses the clamped rawDt
   fpsAccum += wallDt;
   frames++;
@@ -1325,7 +1333,20 @@ function render(now) {
       ts = lerp(0.35, 1, Math.pow(clamp(1 - slowmo / 0.55, 0, 1), 0.6));
     }
     timeScale = damp(timeScale, ts, 22, rawDt);
-    step(rawDt * timeScale);
+    // Fixed-timestep accumulator. Previously step() was fed the clamped frame
+    // delta directly, so any frame slower than 1/20s silently ran the whole
+    // simulation in slow motion instead of dropping steps -- which is what made
+    // the game feel laggy AND unresponsive at the same time.
+    simAcc += rawDt * timeScale;
+    let subSteps = 0;
+    while (simAcc >= SIM_DT && subSteps < SIM_MAX_STEPS) {
+      step(SIM_DT);
+      simAcc -= SIM_DT;
+      subSteps++;
+    }
+    // Long stall (tab restore, shader compile): drop the backlog rather than
+    // spiral-of-death through hundreds of catch-up steps.
+    if (simAcc > SIM_DT * SIM_MAX_STEPS) simAcc = 0;
   }
 
   if (meleeCam.t > 0) {
@@ -1597,4 +1618,28 @@ if (orbitArg) {
 world.update(player.s, QUALITY[quality].viewFwd, 190, camera.position, raceTime);
 traffic.update(0.016, player.s, player.v);
 void bootRng;
+
+// Compile every shader program up front. Three.js otherwise compiles lazily on
+// first render of each material, so the opening seconds of play stutter once
+// per new object type entering view (67 programs = 67 stalls). This is the
+// single biggest cause of the "lag" felt on real hardware.
+renderer.compile(scene, camera);
+
+// The shadow camera follows the player, but 347 casters re-projected every
+// frame doubles the scene's geometry cost for detail no one can resolve in
+// motion. Refresh on a cadence instead.
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
+
+// Don't burn CPU/GPU (or accumulate a simulation backlog) in a hidden tab.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    paused = true;
+  } else {
+    paused = false;
+    last = performance.now();
+    simAcc = 0;
+  }
+});
+
 requestAnimationFrame(render);

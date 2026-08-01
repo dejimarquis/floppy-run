@@ -831,6 +831,12 @@ mark('compile');
 
 renderer.setAnimationLoop(step);
 
+// Don't run (or bank a physics backlog) while the tab is hidden.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) renderer.setAnimationLoop(null);
+  else { last = performance.now(); acc = 0; renderer.setAnimationLoop(step); }
+});
+
 /* ------------------------------------------------------------------ */
 /* boot                                                                */
 /* ------------------------------------------------------------------ */
