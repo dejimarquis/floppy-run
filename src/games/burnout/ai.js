@@ -205,7 +205,13 @@ export class RacerAI {
   respawn() {
     const car = this.car;
     const t = this.game.track;
-    const s = t.wrapS(this.game.player.veh.trackS + 40 + Math.random() * 90);
+    // Reappear BEHIND the player, out of shot. This used to drop a repaired
+    // rival 40-130m directly ahead -- i.e. a pristine car materialising in the
+    // player's windscreen three seconds after they wrecked it, which is the
+    // single most incoherent thing in the game. Coming back from behind means
+    // the player only ever sees a rival *arrive*, and the AI's catch-up
+    // handles the rest.
+    const s = t.wrapS(this.game.player.veh.trackS - (240 + Math.random() * 180));
     car.veh.reset(s, (Math.random() - 0.5) * 10, t);
     car.repair();
     this.recovering = 0;

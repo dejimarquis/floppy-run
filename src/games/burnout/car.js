@@ -94,7 +94,11 @@ export class Car {
         mass: opts.mass ?? (this.styleName === 'muscle' ? 1580 : 1330),
         size: [S.width, S.roof, S.len],
         wheelBase: S.wheelbase,
-        trackWidth: S.width * 0.80,
+        // Track was 0.80 of body width, which put the outer sidewall ~100mm
+        // INSIDE the arch: from the chase camera the wheels were completely
+        // hidden by the bodywork and the car read as a floating capsule.
+        // 0.90 sets the tyre flush with the flared arch, like a real car.
+        trackWidth: S.width * 0.90,
         wheelR: S.wheelR,
         enginePower: opts.power ?? 56000,
         topSpeed: opts.topSpeed ?? 55,
@@ -261,11 +265,15 @@ export class Car {
     this.flameK = 0;
     const exParts = [];
     for (const sx of [-1, 1]) {
-      const g = new THREE.CylinderGeometry(0.055, 0.065, 0.16, 10);
+      // Open-ended: a tailpipe is a HOLE. With caps on, and in bright chrome,
+      // these rendered as two pale discs at the very bottom of the black
+      // valance -- the lightest thing on the whole car, and the reason the
+      // wheels/hubs looked like caster wheels. Recessed and dark now.
+      const g = new THREE.CylinderGeometry(0.058, 0.062, 0.20, 12, 1, true);
       g.rotateX(Math.PI / 2);
-      g.translate(sx * 0.34, S.ride + 0.10, -meta.sil.halfLen - 0.02);
+      g.translate(sx * 0.32, S.ride + 0.14, -meta.sil.halfLen + 0.07);
       exParts.push(g);
-      this.exhausts.push(new THREE.Vector3(sx * 0.34, S.ride + 0.10, -meta.sil.halfLen - 0.02));
+      this.exhausts.push(new THREE.Vector3(sx * 0.32, S.ride + 0.14, -meta.sil.halfLen - 0.02));
     }
     const exGeo = mergeGeometries(exParts, false);
     for (const g of exParts) g.dispose();
@@ -334,9 +342,11 @@ export class Car {
     }
     return this._trim;
   }
+  // Dark gunmetal for the tailpipes. Was a bright chrome (0x8f959d) that put
+  // the two brightest pixels on the car at the bottom of the rear valance.
   chromeMat() {
     if (!this._chrome) {
-      this._chrome = new THREE.MeshStandardMaterial({ color: 0x8f959d, roughness: 0.24, metalness: 0.95, envMapIntensity: 0.55 });
+      this._chrome = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.42, metalness: 0.88, envMapIntensity: 0.30 });
     }
     return this._chrome;
   }
@@ -370,9 +380,14 @@ export class Car {
     // tail light bar
     // The chase camera looks at this bar for the whole race, so it has to be
     // a readable light signature, not a 9cm hairline that vanishes past 6m.
-    const tg = new THREE.PlaneGeometry(S.width * 0.86, 0.16);
+    // It also has to be ON the car: `S.tail` is the height of the *highest*
+    // point of the tail, so `S.tail + 0.14` floated the bar 14cm above the
+    // bodywork, and `width * 0.86` made it wider than the tail is (the plan
+    // view tapers to 0.70 back there). From the chase cam that read as a
+    // second, brighter wing hovering behind the spoiler. Sit it on the fascia.
+    const tg = new THREE.PlaneGeometry(S.width * 0.60, 0.15);
     this.tailBar = new THREE.Mesh(tg, tailMat);
-    this.tailBar.position.set(0, S.tail + 0.14, -hl * 0.975);
+    this.tailBar.position.set(0, S.tail * 0.76, -hl * 0.975);
     this.tailBar.rotation.y = Math.PI;
     this.inner.add(this.tailBar);
     // brake light blocks
@@ -382,9 +397,9 @@ export class Car {
     });
     const brakeParts = [];
     for (const sx of [-1, 1]) {
-      const g = new THREE.PlaneGeometry(0.32, 0.11);
+      const g = new THREE.PlaneGeometry(0.26, 0.10);
       g.rotateY(Math.PI);
-      g.translate(sx * S.width * 0.32, S.tail + 0.02, -hl * 0.978);
+      g.translate(sx * S.width * 0.24, S.tail * 0.58, -hl * 0.978);
       brakeParts.push(g);
     }
     const brakeGeo = mergeGeometries(brakeParts, false);
@@ -414,8 +429,8 @@ export class Car {
     this.headGlow = mkProxy(0, 1.0, 0.94, 0.846, 0.13);
     this.tailGlow = mkProxy(2, 1.0, 0.165, 0.070, 0.22);
     this.tailGlowPos = [
-      new THREE.Vector3(-S.width * 0.32, S.tail + 0.10, -hl * 0.99),
-      new THREE.Vector3(S.width * 0.32, S.tail + 0.10, -hl * 0.99),
+      new THREE.Vector3(-S.width * 0.24, S.tail * 0.68, -hl * 0.99),
+      new THREE.Vector3(S.width * 0.24, S.tail * 0.68, -hl * 0.99),
     ];
 
     // volumetric-ish head light beams
@@ -455,7 +470,9 @@ export class Car {
 
   buildWheels(S) {
     const parts = buildWheelGeometry(S.wheelR, S.wheelW);
-    const tyreMat = new THREE.MeshStandardMaterial({ color: 0x141519, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.35 });
+    // Rubber, not a void: slightly lifted off black so the sidewall catches a
+    // little light and the round shape is legible against the dark valance.
+    const tyreMat = new THREE.MeshStandardMaterial({ color: 0x1b1c21, roughness: 0.96, metalness: 0.0, envMapIntensity: 0.18 });
     // Rim, brake disc and caliper are one welded hub with per-vertex tinting.
     // Three separate InstancedMeshes cost three draw calls per car in both the
     // colour and the shadow pass, which is most of a six-car field's budget.
@@ -474,13 +491,15 @@ export class Car {
       return g;
     };
     const hubGeo = mergeGeometries([
-      tint(parts.rim, 0.052, 0.058, 0.070, 0),
+      // The rim must sit LIGHTER than the tyre, otherwise wheel and tyre merge
+      // into one dark smudge and the wheel stops reading as a wheel at all.
+      tint(parts.rim, 0.150, 0.158, 0.176, 0),
       tint(parts.disc, 0.020, 0.021, 0.024, 1),
       tint(parts.caliper, 0.176, 0.030, 0.014, 0),
     ], false);
     const hubMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, vertexColors: true, roughness: 0.44, metalness: 0.62,
-      envMapIntensity: 0.20, emissive: 0xff2200, emissiveIntensity: 0,
+      color: 0xffffff, vertexColors: true, roughness: 0.38, metalness: 0.55,
+      envMapIntensity: 0.26, emissive: 0xff2200, emissiveIntensity: 0,
     });
     // Emissive is a material-wide uniform, so a welded hub would glow across
     // rim and caliper too. aHot masks the brake-heat glow to the disc faces.

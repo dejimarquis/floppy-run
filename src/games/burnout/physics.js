@@ -519,9 +519,13 @@ export class Vehicle {
       // full throttle produces nothing at all and the car simply parks there
       // until the recovery watchdog notices. Give the driver a shove along the
       // barrier so holding accelerate always eventually means "go".
-      if (this.speed < 8 && this.input.throttle > 0.25 && !this.wrecked) {
+      // The shove has to beat wall friction outright: at mass*7 and only below
+      // 8 m/s a kid holding one direction still ended the test parked at
+      // <1 m/s in 2 runs out of 3. Stronger, and active over a wider band.
+      if (this.speed < 22 && this.input.throttle > 0.15 && !this.wrecked) {
+        const need = clamp(1 - this.speed / 22, 0.25, 1);
         b.applyCentralForce(_v2.copy(f.tan)
-          .multiplyScalar(this.wallDir * this.cfg.mass * 7 * this.input.throttle));
+          .multiplyScalar(this.wallDir * this.cfg.mass * 26 * need * this.input.throttle));
       }
 
       if (vn < 0) {

@@ -1286,8 +1286,13 @@ class Game {
         // down from 317 to ~200 km/h the SENSATION of speed has to come from
         // the rig: low eyeline, ground rushing past, FOV that opens up with
         // pace and punches on boost.
-        const back = 6.5 + spd01 * 2.0 + boostK * 1.6;
-        const height = 1.95 + spd01 * 0.42;
+        // Chase rig. The camera used to sit at 1.95m, which from behind looks
+        // almost edge-on at the tail: the roofline is hidden behind the rear
+        // deck and the car collapses into a coloured blob. Sitting higher shows
+        // the bonnet-to-roof profile and the wheels in their arches, which is
+        // what makes it read as a car at a glance.
+        const back = 6.9 + spd01 * 2.0 + boostK * 1.6;
+        const height = 2.62 + spd01 * 0.45;
         desired.set(b.pos.x - ys * back, b.pos.y + height, b.pos.z - yc * back);
         const surf = this.track.surface(desired.x, desired.z, p.veh.hint);
         if (surf && desired.y < surf.y + 1.15) desired.y = surf.y + 1.15;

@@ -167,7 +167,10 @@ export class World {
       roughnessMap: road.roughnessMap,
       roughness: 1.0,
       metalness: 0.0,
-      normalScale: new THREE.Vector2(0.5, 0.5),
+      // Asphalt at speed is nearly smooth. The base + detail normals were
+      // strong enough to read as wet gravel or porridge in the foreground,
+      // and the high-frequency noise fought the motion blur.
+      normalScale: new THREE.Vector2(0.22, 0.22),
       envMapIntensity: 0.18,
       dithering: true,
     });
@@ -208,7 +211,7 @@ export class World {
         .replace('#include <normal_fragment_maps>', `
           vec3 dN = texture2D(uDetailN, vRoadUv * uDetailRep).xyz * 2.0 - 1.0;
           vec3 bN = texture2D(normalMap, vNormalMapUv).xyz * 2.0 - 1.0;
-          vec3 mapN = normalize(vec3(bN.xy * normalScale + dN.xy * 0.16 * (1.0 - roadWet), bN.z));
+          vec3 mapN = normalize(vec3(bN.xy * normalScale + dN.xy * 0.05 * (1.0 - roadWet), bN.z));
           normal = normalize(tbn * mapN);`);
     };
     this.roadMat = roadMat;

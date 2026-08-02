@@ -13,26 +13,30 @@ const STATIONS = 80;
 const RING = 32;
 
 export const CAR_STYLES = {
+  // Silhouette note: these read at CHASE-CAM distance, not in an orbit
+  // inspection view. A low roof over a wide body collapses into a featureless
+  // blob from behind -- the greenhouse has to sit clearly above the hood and
+  // the wheels have to be visible under the arches, or it reads as a jellybean.
   sport: {
-    len: 4.62, width: 2.02, wheelbase: 2.7, ride: 0.155,
-    hood: 0.80, roof: 1.16, deck: 1.00, nose: 0.60, tail: 0.90,
+    len: 4.62, width: 1.94, wheelbase: 2.7, ride: 0.185,
+    hood: 0.80, roof: 1.38, deck: 1.02, nose: 0.60, tail: 0.92,
     cabin: [-0.44, 0.30], roofT: [-0.20, 0.14], wsT: [0.14, 0.50], blT: [-0.50, -0.20], wsA: 0.62, rearC: -0.66,
-    wheelR: 0.405, wheelW: 0.34, frontZ: 1.40, rearZ: -1.36,
-    spoiler: 0.10, flareF: 0.085, flareR: 0.105,
+    wheelR: 0.425, wheelW: 0.34, frontZ: 1.40, rearZ: -1.36,
+    spoiler: 0.10, flareF: 0.095, flareR: 0.115,
   },
   muscle: {
-    len: 5.02, width: 2.10, wheelbase: 2.95, ride: 0.205,
-    hood: 0.92, roof: 1.30, deck: 1.10, nose: 0.76, tail: 1.00,
+    len: 5.02, width: 2.02, wheelbase: 2.95, ride: 0.225,
+    hood: 0.92, roof: 1.50, deck: 1.12, nose: 0.76, tail: 1.02,
     cabin: [-0.52, 0.30], roofT: [-0.26, 0.10], wsT: [0.10, 0.46], blT: [-0.56, -0.26], wsA: 0.50, rearC: -0.72,
-    wheelR: 0.435, wheelW: 0.38, frontZ: 1.50, rearZ: -1.48,
-    spoiler: 0.22, flareF: 0.075, flareR: 0.115,
+    wheelR: 0.450, wheelW: 0.38, frontZ: 1.50, rearZ: -1.48,
+    spoiler: 0.22, flareF: 0.085, flareR: 0.125,
   },
   super: {
-    len: 4.66, width: 2.10, wheelbase: 2.72, ride: 0.125,
-    hood: 0.72, roof: 1.08, deck: 0.96, nose: 0.50, tail: 0.86,
+    len: 4.66, width: 2.02, wheelbase: 2.72, ride: 0.155,
+    hood: 0.72, roof: 1.30, deck: 0.98, nose: 0.50, tail: 0.88,
     cabin: [-0.40, 0.32], roofT: [-0.16, 0.10], wsT: [0.10, 0.52], blT: [-0.44, -0.16], wsA: 0.52, rearC: -0.46,
-    wheelR: 0.415, wheelW: 0.38, frontZ: 1.38, rearZ: -1.36,
-    spoiler: 0.30, flareF: 0.095, flareR: 0.125,
+    wheelR: 0.435, wheelW: 0.38, frontZ: 1.38, rearZ: -1.36,
+    spoiler: 0.30, flareF: 0.105, flareR: 0.135,
   },
 };
 
@@ -387,8 +391,17 @@ export function makePaintMaterial(color, opts = {}) {
           // position -- otherwise a door lands mid-stripe and paints solid.
           float st = mix(s1, s2, step(0.5, uLivery)) * upper * faceUp;
           diffuseColor.rgb = mix(diffuseColor.rgb, uStripe, st * 0.55);
-          // darkened sill / underbody strip
-          diffuseColor.rgb *= mix(0.42, 1.0, smoothstep(0.10, 0.30, lp.y));
+          // Dark lower valance. The old band faded out by y=0.30, which on the
+          // current (taller) body was below the visible sill -- the car showed
+          // as one unbroken slab of colour from the ground to the roof. This
+          // grounds it: near-black under the sill, full colour by mid-door.
+          diffuseColor.rgb *= mix(0.24, 1.0, smoothstep(0.14, 0.54, lp.y));
+          // Shutline between the rear deck and the bumper, and between the
+          // bonnet and the front clip. Two dark hairlines are all it takes to
+          // stop the body reading as a single moulded lump.
+          float cutR = 1.0 - smoothstep(0.0, 0.045, abs(lp.z + 1.16));
+          float cutF = 1.0 - smoothstep(0.0, 0.040, abs(lp.z - 1.06));
+          diffuseColor.rgb *= 1.0 - 0.55 * max(cutR, cutF) * smoothstep(0.30, 0.52, lp.y);
           // graduated deepening toward the roof reads as expensive paint
           diffuseColor.rgb *= mix(1.0, 0.86, smoothstep(0.48, 0.95, lp.y));
         }`);
@@ -398,13 +411,16 @@ export function makePaintMaterial(color, opts = {}) {
 
 export function makeGlassMaterial() {
   // Iridescence plus a 2.4x env turned every window into a magenta-white blob
-  // that read as a rendering artefact rather than glass.
+  // that read as a rendering artefact rather than glass. It then swung too far
+  // the other way: at 0.44 opacity the body colour showed straight through, so
+  // a red car was one continuous red mass from nose to tail with no readable
+  // greenhouse. Darker and more opaque gives the silhouette its glass band.
   return new THREE.MeshPhysicalMaterial({
-    color: 0x151d27,
+    color: 0x0b1119,
     metalness: 0.0,
     roughness: 0.07,
     transparent: true,
-    opacity: 0.44,
+    opacity: 0.74,
     envMapIntensity: 0.85,
     clearcoat: 1,
     clearcoatRoughness: 0.03,
@@ -415,14 +431,16 @@ export function makeGlassMaterial() {
 
 // ------------------------------------------------------------------ wheels
 export function buildWheelGeometry(R = 0.36, W = 0.3) {
-  // tyre: cylinder with rounded shoulders (lathe)
+  // tyre: cylinder with rounded shoulders (lathe). The rim seat sits at 58% of
+  // the radius so there is real sidewall to see -- at 0.66 the rim dominated
+  // and the wheel read as a bare hub or a caster.
   const pts = [];
-  const rimR = R * 0.66;
+  const rimR = R * 0.58;
   pts.push(new THREE.Vector2(rimR, -W / 2));
-  pts.push(new THREE.Vector2(R * 0.9, -W / 2));
-  pts.push(new THREE.Vector2(R, -W / 2 + 0.05));
-  pts.push(new THREE.Vector2(R, W / 2 - 0.05));
-  pts.push(new THREE.Vector2(R * 0.9, W / 2));
+  pts.push(new THREE.Vector2(R * 0.86, -W / 2 + 0.005));
+  pts.push(new THREE.Vector2(R, -W / 2 + 0.055));
+  pts.push(new THREE.Vector2(R, W / 2 - 0.055));
+  pts.push(new THREE.Vector2(R * 0.86, W / 2 - 0.005));
   pts.push(new THREE.Vector2(rimR, W / 2));
   const tyre = new THREE.LatheGeometry(pts, 26);
   tyre.rotateZ(Math.PI / 2);
@@ -530,6 +548,10 @@ export function buildUnderbody(styleName = 'sport', yFloor = null) {
   const RIB = [0.062, 0.064, 0.070];
   const BLK = [0.022, 0.023, 0.026];
   const STL = [0.20, 0.208, 0.222];
+  // Tailpipe tips face the chase camera head-on. In bright STL they were the
+  // lightest thing on the whole car -- two pale discs on a black valance --
+  // and read as bare hubs or caster wheels rather than exhausts. Gunmetal.
+  const TIP = [0.075, 0.078, 0.086];
   const RST = [0.145, 0.105, 0.072];
 
   // floor pan, tapered so it never breaks the body silhouette at nose or tail
@@ -561,7 +583,9 @@ export function buildUnderbody(styleName = 'sport', yFloor = null) {
   // exhaust: two runs from the bulkhead to the tips
   for (const sx of [-1, 1]) {
     add(tube(0.056, S.len * 0.52), sx * 0.26, y0 + 0.02, -0.05, RST, Math.PI * 0.5);
-    add(tube(0.075, 0.30), sx * 0.30, y0 + 0.03, S.rearZ - 0.02, STL, Math.PI * 0.5);
+    // smaller and recessed 120mm further under the valance, so the tip reads as
+    // a hole in shadow instead of a headlight-bright disc
+    add(tube(0.052, 0.30), sx * 0.30, y0 + 0.03, S.rearZ + 0.12, TIP, Math.PI * 0.5);
     // mid silencer
     add(box(0.20, 0.11, 0.46), sx * 0.30, y0 + 0.02, S.rearZ + 0.60, RST);
   }

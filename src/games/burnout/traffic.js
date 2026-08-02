@@ -355,10 +355,19 @@ export class Traffic {
 
   /** Scatter every vehicle around the given arc-length. */
   reset(playerS) {
-    for (const it of this.items) {
+    const n = this.items.length;
+    for (let i = 0; i < n; i++) {
+      const it = this.items[i];
       it.active = false;
       it.mode = 'cruise';
       this.respawn(it, playerS);
+      // respawn() places vehicles beyond the pop-in horizon, which is right
+      // while racing but would leave the road empty for the first few seconds.
+      // At reset, spread the population evenly over the whole live band --
+      // including behind the player -- so the world starts already busy.
+      const frac = (i + 0.5) / n;
+      it.s = this.track.wrapS(playerS - 260 + frac * 1180 + this.rng.range(-40, 40));
+      this.syncCruise(it, 0);
     }
   }
 
@@ -378,7 +387,13 @@ export class Traffic {
     const t = this.track;
     const oncoming = this.rng.next() < 0.42;
     it.dir = oncoming ? -1 : 1;
-    const dist = ahead ? this.rng.range(120, 460) : -this.rng.range(140, 320);
+    // Spawn distance. This used to be 120m ahead, which on a straight road is
+    // comfortably inside the visible range (fog density is only 0.00034, so
+    // nothing is hidden at that distance) -- traffic literally materialised in
+    // front of the player. Push the spawn band well beyond the point where a
+    // car is more than a few pixels, so vehicles are always *approached* rather
+    // than conjured. Recycle distance below is widened to match.
+    const dist = ahead ? this.rng.range(430, 820) : -this.rng.range(200, 340);
     it.s = t.wrapS(playerS + dist);
     const laneW = 4.1;
     if (oncoming) it.u = -laneW * (0.55 + this.rng.int(0, 2)) - 1.0;
@@ -554,7 +569,7 @@ export class Traffic {
 
       // recycle
       const d = t.deltaS(it.s, playerS);
-      if (d < -260 || d > 620 || (it.mode === 'physics' && it.life > 22)) {
+      if (d < -300 || d > 980 || (it.mode === 'physics' && it.life > 22)) {
         this.respawn(it, playerS);
       }
 
