@@ -396,6 +396,12 @@ export function makePaintMaterial(color, opts = {}) {
           // as one unbroken slab of colour from the ground to the roof. This
           // grounds it: near-black under the sill, full colour by mid-door.
           diffuseColor.rgb *= mix(0.24, 1.0, smoothstep(0.14, 0.54, lp.y));
+          // Rear + front fascia. From the chase camera the tail is 60% of what
+          // the player sees, and painted body-colour it was one huge red oval
+          // with the lights invisible against it. A dark bumper under the light
+          // line gives the tail a top/bottom read and makes the lamps pop.
+          float endz = smoothstep(1.05, 1.55, abs(lp.z));
+          diffuseColor.rgb *= mix(1.0, 0.16, endz * (1.0 - smoothstep(0.60, 0.94, lp.y)));
           // Shutline between the rear deck and the bumper, and between the
           // bonnet and the front clip. Two dark hairlines are all it takes to
           // stop the body reading as a single moulded lump.

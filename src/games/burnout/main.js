@@ -1297,7 +1297,10 @@ class Game {
         const surf = this.track.surface(desired.x, desired.z, p.veh.hint);
         if (surf && desired.y < surf.y + 1.15) desired.y = surf.y + 1.15;
         look.set(b.pos.x + ys * (8.5 + spd01 * 5), b.pos.y + 1.05, b.pos.z + yc * (8.5 + spd01 * 5));
-        fovTarget = 60 + spd01 * 20 + boostK * 16;
+        // 60 degrees base was pushing the hero car down to a few dozen pixels
+        // and barrel-distorting it. A 52 degree base renders the car large
+        // enough to read, and the *kick* (not the base) is what sells speed.
+        fovTarget = 52 + spd01 * 21 + boostK * 17;
         stiff = 6.0 + spd01 * 3.2;
         break;
       }

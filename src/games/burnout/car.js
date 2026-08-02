@@ -214,7 +214,10 @@ export class Car {
       const wing = new THREE.BoxGeometry(S.width * 0.86, 0.055, 0.34);
       const wy = S.deck + S.spoiler + 0.10, wz = -hl * 0.86;
       tagBody(wing, 0, wy, wz);
-      const wm = new THREE.Mesh(wing, this.paint);
+      // Carbon, not body colour. A body-coloured slab this size sat right
+      // across the middle of the silhouette at chase distance and merged with
+      // the deck into one continuous mass; dark, it frames the tail instead.
+      const wm = new THREE.Mesh(wing, this.darkTrim());
       wm.position.set(0, wy, wz);
       wm.rotation.x = -0.12;
       wm.castShadow = this.isPlayer;
@@ -385,10 +388,15 @@ export class Car {
     // bodywork, and `width * 0.86` made it wider than the tail is (the plan
     // view tapers to 0.70 back there). From the chase cam that read as a
     // second, brighter wing hovering behind the spoiler. Sit it on the fascia.
-    const tg = new THREE.PlaneGeometry(S.width * 0.60, 0.15);
+    const tg = new THREE.PlaneGeometry(S.width * 0.58, 0.17);
     this.tailBar = new THREE.Mesh(tg, tailMat);
-    this.tailBar.position.set(0, S.tail * 0.76, -hl * 0.975);
+    // Just proud of the rearmost point of the shell. Inside it (z = -hl*0.975)
+    // the bodywork swallows the bar completely; that is why the shipped version
+    // had to sit 14cm ABOVE the tail to be seen at all, where it read as a
+    // second glowing wing hovering behind the spoiler.
+    this.tailBar.position.set(0, S.tail * 0.74, -hl * 1.005);
     this.tailBar.rotation.y = Math.PI;
+    this.tailBar.rotation.x = -0.10;
     this.inner.add(this.tailBar);
     // brake light blocks
     this.brakeMat = new THREE.MeshStandardMaterial({
@@ -399,7 +407,7 @@ export class Car {
     for (const sx of [-1, 1]) {
       const g = new THREE.PlaneGeometry(0.26, 0.10);
       g.rotateY(Math.PI);
-      g.translate(sx * S.width * 0.24, S.tail * 0.58, -hl * 0.978);
+      g.translate(sx * S.width * 0.24, S.tail * 0.52, -hl * 1.003);
       brakeParts.push(g);
     }
     const brakeGeo = mergeGeometries(brakeParts, false);
