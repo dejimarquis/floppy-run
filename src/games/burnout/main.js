@@ -1291,16 +1291,17 @@ class Game {
         // deck and the car collapses into a coloured blob. Sitting higher shows
         // the bonnet-to-roof profile and the wheels in their arches, which is
         // what makes it read as a car at a glance.
-        const back = 6.9 + spd01 * 2.0 + boostK * 1.6;
-        const height = 2.62 + spd01 * 0.45;
+        // Distance and FOV both grew with speed, so at 175 km/h the car was
+        // pushed back 8.9m AND shot at 73 degrees — it collapsed to a red pod.
+        // Keep the rig close and let the boost kick (not the cruise value)
+        // carry the speed read.
+        const back = 5.9 + spd01 * 1.0 + boostK * 1.6;
+        const height = 2.34 + spd01 * 0.34;
         desired.set(b.pos.x - ys * back, b.pos.y + height, b.pos.z - yc * back);
         const surf = this.track.surface(desired.x, desired.z, p.veh.hint);
         if (surf && desired.y < surf.y + 1.15) desired.y = surf.y + 1.15;
-        look.set(b.pos.x + ys * (8.5 + spd01 * 5), b.pos.y + 1.05, b.pos.z + yc * (8.5 + spd01 * 5));
-        // 60 degrees base was pushing the hero car down to a few dozen pixels
-        // and barrel-distorting it. A 52 degree base renders the car large
-        // enough to read, and the *kick* (not the base) is what sells speed.
-        fovTarget = 52 + spd01 * 21 + boostK * 17;
+        look.set(b.pos.x + ys * (7.4 + spd01 * 4), b.pos.y + 1.02, b.pos.z + yc * (7.4 + spd01 * 4));
+        fovTarget = 50 + spd01 * 14 + boostK * 17;
         stiff = 6.0 + spd01 * 3.2;
         break;
       }
