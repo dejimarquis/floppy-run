@@ -175,11 +175,13 @@ export const GradeShader = {
         float sliver = smoothstep( 0.5, 0.0, abs( lane - 0.5 ) * 2.0 );
         sliver = pow( sliver, 3.0 );
         float travel = fract( rnd * 7.13 + uTime * ( 2.4 + rnd * 3.0 ) );
-        // Confined to the outer third of the frame: streaks across the tarmac
-        // the player is aiming at read as scan-lines, not as velocity.
-        float band = smoothstep( 0.50, 0.86, radial ) * ( 1.0 - smoothstep( 0.98, 1.42, radial ) );
+        // Confined to the extreme outer edge of the frame: streaks across the
+        // tarmac the player is aiming at read as scan-lines, not as velocity,
+        // and at the previous strength they laid a white grid over the grass,
+        // the guardrail and the road at ordinary cruising speed.
+        float band = smoothstep( 0.62, 0.95, radial ) * ( 1.0 - smoothstep( 1.02, 1.45, radial ) );
         float streak = sliver * band * smoothstep( 0.0, 0.30, travel ) * ( 1.0 - travel ) * notSky;
-        col += vec3( 0.85, 0.94, 1.0 ) * streak * uSpeed * 1.6;
+        col += vec3( 0.85, 0.94, 1.0 ) * streak * uSpeed * 0.75;
       }
 
       // ---- exposure + tonemap (linear HDR in, display linear out) ---------

@@ -482,14 +482,19 @@ export class World {
         base.y += this.hillHeight(base.x, base.z, HW + 15) * 0.9;
         const board = new THREE.PlaneGeometry(12.5, 6.2);
         board.translate(0, 9.4, 0);
-        board.rotateY(side > 0 ? Math.PI - side * 0.28 : -0.28);
+        // Both sides must face oncoming traffic. The `Math.PI` branch turned
+        // every billboard on the +right side of the road through 180 deg, so
+        // its FrontSide plane was culled and all the player saw was the dark
+        // support frame behind it: a solid black rectangle beside the road.
+        // The only per-side difference should be the sign of the toe-in.
+        board.rotateY(-side * 0.28);
         board.applyMatrix4(new THREE.Matrix4().compose(base, q, new THREE.Vector3(1, 1, 1)));
         const bm = new THREE.Mesh(board, mats.billboardMats[(ci / 3) % mats.billboardMats.length | 0]);
         bm.castShadow = false;
         g.add(bm);
         const frame = new THREE.BoxGeometry(13.1, 6.8, 0.3);
         frame.translate(0, 9.4, -0.25);
-        frame.rotateY(side > 0 ? Math.PI - side * 0.28 : -0.28);
+        frame.rotateY(-side * 0.28);
         const legA = new THREE.BoxGeometry(0.3, 9.4, 0.3);
         legA.translate(-3.6, 4.7, 0);
         const legB = new THREE.BoxGeometry(0.3, 9.4, 0.3);

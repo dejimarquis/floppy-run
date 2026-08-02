@@ -534,6 +534,12 @@ export class WindStreaks {
             .addScaledVector(camDir, 7 + Math.random() * 16)
             .addScaledVector(cr, Math.cos(a) * r)
             .addScaledVector(cu, Math.sin(a) * r * 0.62);
+          // These are meant to read as air tearing past the bike. Distributed
+          // evenly around the camera axis, a good third of them ended up above
+          // eye level, which at this camera pitch means above the horizon —
+          // bright dashes hanging in the blue sky. Keep them under the eye
+          // line so they always sit against the road.
+          if (s.pos.y > camPos.y - 0.2) s.pos.y = camPos.y - 0.2 - Math.random() * r * 0.5;
           s.life = 0.2 + Math.random() * 0.14;
           s.len = 1.6 + Math.random() * 3.4;
         } else continue;

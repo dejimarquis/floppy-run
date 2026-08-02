@@ -1454,7 +1454,10 @@ function render(now) {
     post.setParams({
       uHorizon: clamp(_horizDir.y * 0.5 + 0.5, 0.02, 0.98),
       uBlur: (0.004 + speed01 * 0.050) * (player.boosting ? 1.25 : 1) * stat,
-      uSpeed: clamp((player.v - 16) / 36, 0, 1) * stat * (player.crashed ? 0.2 : 1),
+      // Streaks are a top-speed accent, not an ambient overlay. Starting at
+      // 16 m/s (58 km/h) meant they were on-screen for essentially the whole
+      // race; 34 m/s (~122 km/h) puts them in the last third of the dial.
+      uSpeed: clamp((player.v - 34) / 20, 0, 1) * stat * (player.crashed ? 0.2 : 1),
       uCA: 0.00040 + speed01 * 0.00085,
       uVignette: 0.62,
       uGrain: quality === 'low' ? 0.022 : 0.032,
