@@ -118,7 +118,7 @@ export class HUD {
       </div>
       <div id="pb-banner"></div>
       <div id="pb-balls"><u>BALLS</u></div>
-      <div id="pb-rank">MISSION <b id="pb-mission-count">0</b> COMPLETE &nbsp;&bull;&nbsp; NEXT RANK <b id="pb-next">ENSIGN</b></div>
+      <div id="pb-rank"><b id="pb-mission-count">0</b> <span id="pb-mission-word">MISSIONS</span> COMPLETE &nbsp;&bull;&nbsp; NEXT RANK <b id="pb-next">ENSIGN</b></div>
       <div id="pb-help">
         <div><kbd>Z</kbd><kbd>←</kbd> LEFT FLIPPER &nbsp; <kbd>/</kbd><kbd>→</kbd> RIGHT FLIPPER</div>
         <div><kbd>SPACE</kbd> PLUNGER &nbsp; <kbd>X</kbd><kbd>C</kbd><kbd>↑</kbd> NUDGE &nbsp; <kbd>1-5</kbd> CAMERA</div>
@@ -150,6 +150,7 @@ export class HUD {
     this.$balls = el.querySelector('#pb-balls');
     this.$tilt = el.querySelector('#pb-tilt');
     this.$missionCount = el.querySelector('#pb-mission-count');
+    this.$missionWord = el.querySelector('#pb-mission-word');
     this.$next = el.querySelector('#pb-next');
     this.$pops = el.querySelector('#pb-pops');
     this.bannerT = 0;
@@ -212,6 +213,7 @@ export class HUD {
     this.$mult.textContent = s.multiplier + 'X';
     this.$rank.textContent = s.rankName;
     this.$missionCount.textContent = s.missionsDone;
+    this.$missionWord.textContent = s.missionsDone === 1 ? 'MISSION' : 'MISSIONS';
     this.$next.textContent = s.nextRank;
     if (s.modeName) {
       this.$mname.textContent = s.modeName;

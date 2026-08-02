@@ -80,13 +80,18 @@ export class CameraRig {
       // enough that you are looking *down* the deck. The original never
       // swooped and never went oblique — the machine sat still and you read
       // the board. Backbox clipped at the top of frame, apron at the bottom.
-      px = 0.105;
+      //
+      // The camera must sit on the table's centreline. It used to be 10.5cm
+      // off to one side, which is an oblique view: the two side rails converge
+      // at different rates and the whole cabinet reads as if it has been
+      // rolled a few degrees clockwise. Space Cadet is dead symmetrical.
+      px = 0;
       py = 1.005;
       pz = 0.625;
-      tx = 0.002;
+      tx = 0;
       ty = -0.029;
-      tz = -0.483;
-      fov = 34;
+      tz = -0.497;
+      fov = 34.8;
       roll = 0;
     } else if (this.mode === 'follow') {
       // The same fixed framing with a whisper of parallax toward the ball.
@@ -94,13 +99,13 @@ export class CameraRig {
       // that chases the ball around the board is the single most "modern
       // videogame" thing a pinball table can do.
       const lower = THREE.MathUtils.clamp((bp.z + 0.75) / 0.75, 0, 1); // 1 = near flippers
-      px = 0.105 - bp.x * 0.035;
+      px = -bp.x * 0.035;
       py = 1.005 - lower * 0.010;
       pz = 0.625 - lower * 0.006;
-      tx = 0.002 + bp.x * 0.055;
+      tx = bp.x * 0.055;
       ty = -0.029;
-      tz = -0.483 - bp.z * 0.028;
-      fov = 34 + lower * 0.7;
+      tz = -0.497 - bp.z * 0.028;
+      fov = 34.8 + lower * 0.7;
       roll = 0;
     } else if (this.mode === 'ballcam') {
       // chase cam locked behind and above the ball: the ball is the hero
