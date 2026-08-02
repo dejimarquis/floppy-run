@@ -86,6 +86,9 @@ export class Body {
 
 export const GRAVITY = -19.5; // punchy arcade gravity
 
+/** Frame-rate independent exponential approach. */
+const damp = (a, b, lambda, dt) => a + (b - a) * (1 - Math.exp(-lambda * dt));
+
 export class Vehicle {
   constructor(opts) {
     const cfg = this.cfg = Object.assign({
@@ -96,17 +99,25 @@ export class Vehicle {
       wheelR: 0.36,
       restLen: 0.42,
       springK: 62000,
-      damper: 3600,
+      // Critical damping for a quarter car here is ~9100 Ns/m. The old 3600
+      // left the body at zeta ~0.4, so it pattered over every joint and never
+      // settled -- the "car is jittering rather than sitting planted" defect.
+      damper: 6400,
       maxSteer: 0.52,
       enginePower: 54000,
       brakePower: 26000,
-      topSpeed: 88,
-      boostSpeed: 118,
+      // Human-readable speeds. 317 km/h gave the player less than a second to
+      // read a corner; the *sensation* of speed comes from camera height, FOV
+      // kick and motion blur, not from the number on the dial.
+      topSpeed: 55,
+      boostSpeed: 62,
       gripFront: 2.65,
       gripRear: 2.45,
-      drag: 0.72,
+      drag: 0.9,
       downforce: 3.4,
-      rollStiff: 0.55,
+      // A car that lolls +-18 degrees while driving straight reads as broken
+      // animation. Stiffer bar + more suspension damping keeps it planted.
+      rollStiff: 0.95,
       comHeight: 0.46,
       driveBias: 0.25, // 0 = RWD, 1 = FWD
     }, opts.cfg || {});
@@ -115,6 +126,11 @@ export class Vehicle {
     this.body = new Body({ mass: cfg.mass, size: cfg.size });
     this.input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, boost: 0 };
     this.steerAngle = 0;
+    // Normalised steering command, ramped (see step()). Kept separate from
+    // steerAngle so the speed-sensitive lock limit can move without the ramp
+    // having to chase it.
+    this.steerRaw = 0;
+    this.steerCmd = 0;
     this.wheels = [];
     const hw = cfg.trackWidth / 2, hl = cfg.wheelBase / 2;
     // static compression so the car sits at the right ride height with the
@@ -156,6 +172,7 @@ export class Vehicle {
     this.wallHit = 0;
     this.wallContact = 0;
     this.wallSide = 0;
+    this.wallDir = 1;
     this.lastWallImpact = 0;
     this.onWallHit = null;
     this.boostAmount = 0;
@@ -178,6 +195,7 @@ export class Vehicle {
     this.body.ang.set(0, 0, 0);
     this.trackS = s; this.trackU = u; this.hint = -1;
     this.wrecked = false;
+    this.steerRaw = 0; this.steerCmd = 0; this.steerAngle = 0;
   }
 
   get forward() { return this.body.dirToWorld(_FWD, _fwdOut); }
@@ -200,15 +218,36 @@ export class Vehicle {
     // steering with speed-sensitive reduction
     const spd = b.vel.length();
     const steerLimit = cfg.maxSteer * (0.30 + 0.70 / (1 + spd * 0.024));
-    let target = inp.steer * steerLimit;
-    // While scraping a barrier, steering further into it only scrubs the tyres
-    // and stalls the car. Keep some authority so the player can still fight
-    // free, but stop a held direction key from pinning them at walking pace.
-    if (this.wallContact > 0 && Math.sign(inp.steer) === this.wallSide && inp.steer !== 0) {
-      target *= 0.22;
+    let cmd = clamp(inp.steer, -1, 1);
+    // While scraping a barrier, steering further into it only scrubs the tyres,
+    // so the lock is trimmed -- but only trimmed. Cutting it to 0.22 (as this
+    // did) left the player with almost no wheel at exactly the moment they are
+    // trying to sort the car out, and the barrier corrector now handles the
+    // stall case on its own.
+    if (this.wallContact > 0 && Math.sign(cmd) === this.wallSide && cmd !== 0) {
+      cmd *= 0.55;
     }
-    const rate = 9.0;
-    this.steerAngle += clamp(target - this.steerAngle, -rate * dt, rate * dt);
+    // Slew-rate limited ramp plus light smoothing, NOT an exponential chase.
+    // The old `rate = 9.0` against a 0.52 rad lock reached full lock in ~60ms,
+    // which is a step function, not a steering input: it is what made the car
+    // feel like it was being driven by a computer. STEER_SLEW = 5 units/sec is
+    // ~0.20s centre-to-full-lock; the damp on top adds a little more lag so it
+    // settles around 0.25s. Returning to centre is deliberately quicker than
+    // committing to a lock, which is how a real driver unwinds a wheel.
+    //
+    // `instantSteer` opts a vehicle out: the ramp models a human's hands, and
+    // putting the rival AI (or the player's own autopilot) behind 0.25s of lag
+    // just makes them understeer into the barriers.
+    if (this.instantSteer) {
+      this.steerRaw = cmd;
+      this.steerCmd = damp(this.steerCmd, cmd, 22, dt);
+    } else {
+      const SLEW = 5.0;
+      const slew = SLEW * (Math.abs(cmd) < Math.abs(this.steerRaw) ? 1.8 : 1);
+      this.steerRaw += clamp(cmd - this.steerRaw, -slew * dt, slew * dt);
+      this.steerCmd = damp(this.steerCmd, this.steerRaw, 14, dt);
+    }
+    this.steerAngle = this.steerCmd * steerLimit;
 
     // gravity
     b.applyCentralForce(_v1.set(0, GRAVITY * cfg.mass, 0));
@@ -334,19 +373,33 @@ export class Vehicle {
       // the true contact patch would roll the car over in every corner.
       _v4.copy(wf).multiplyScalar(fx);
       b.applyForce(_v4, w.contactPoint);
-      _rollPt.copy(w.contactPoint).addScaledVector(up, (cfg.comHeight + cfg.wheelR) * 0.82);
+      // Applying the lateral force ABOVE the centre of mass rolls the car into
+      // the corner like a motorbike; the old 0.82 factor put it 0.21 m above
+      // the CoM and, with an underdamped roll mode, the body lolled +-18 deg
+      // while driving straight. Sit it essentially AT the CoM height so the
+      // chassis stays planted and readable, and let the anti-roll bar do the
+      // rest.
+      _rollPt.copy(w.contactPoint).addScaledVector(up, (cfg.comHeight + cfg.wheelR) * 0.90);
       _v4.copy(wr).multiplyScalar(fy);
       b.applyForce(_v4, _rollPt);
       w.spinVel = vf / cfg.wheelR;
     }
 
-    // anti-roll bars keep it planted
+    // Anti-roll bars keep it planted -- or they did not: the shipped signs were
+    // INVERTED. `diff` is positive when wheel A is the more compressed (loaded)
+    // corner, and the code then pushed A *down* and B *up*, which is a PRO-roll
+    // bar. It is why the chassis lolled +-18 deg on a straight, and why simply
+    // raising rollStiff tipped the car onto two wheels and left it there
+    // (measured: compressions 0 / 0.79 / 0 / 0.80, i.e. resting on its side).
+    // A real bar pushes UP on the loaded corner and DOWN on the unloaded one.
     for (const [a, c] of [[0, 1], [2, 3]]) {
       const wa = this.wheels[a], wb = this.wheels[c];
-      if (!wa.contact && !wb.contact) continue;
-      const diff = (wa.compression - wb.compression) * cfg.springK * cfg.rollStiff;
-      if (wa.contact) b.applyForce(_v1.copy(wa.contactNormal).multiplyScalar(-diff), wa.worldPos);
-      if (wb.contact) b.applyForce(_v1.copy(wb.contactNormal).multiplyScalar(diff), wb.worldPos);
+      if (!wa.contact || !wb.contact) continue;
+      const diff = clamp(
+        (wa.compression - wb.compression) * cfg.springK * cfg.rollStiff,
+        -cfg.springK * 0.45, cfg.springK * 0.45);
+      b.applyForce(_v1.copy(wa.contactNormal).multiplyScalar(diff), wa.worldPos);
+      b.applyForce(_v1.copy(wb.contactNormal).multiplyScalar(-diff), wb.worldPos);
     }
 
     // aero
@@ -366,6 +419,15 @@ export class Vehicle {
       b.ang.multiplyScalar(1 - 0.9 * dt);
     }
 
+    // Self-righting. A car resting on its flank slides for as long as it keeps
+    // any speed at all -- it never wrecks, never recovers, and the player is
+    // left watching an unreadable sideways car. Once it is more than ~63 deg
+    // off level with barely any wheels down, roll it back onto its feet.
+    if (!this.wrecked && groundedCount <= 2 && up.y < 0.45) {
+      const axis = _v2.crossVectors(up, _v1.set(0, 1, 0));
+      b.applyTorque(axis.multiplyScalar(11000));
+    }
+
     // yaw assist for arcade responsiveness
     if (groundedCount >= 2 && !this.wrecked) {
       // cap the assist to a yaw rate the tyres can actually support, otherwise the
@@ -380,6 +442,15 @@ export class Vehicle {
 
     // angular damping
     b.ang.multiplyScalar(1 - clamp((this.wrecked ? 0.25 : 1.9) * dt, 0, 0.4));
+
+    // Hard rate cap. Nothing a driveable car does should look like a blender:
+    // a glancing traffic hit was measured spinning the chassis at 7.05 rad/s
+    // (404 deg/s), which is a full rotation inside two frames of a 60Hz camera
+    // and reads as pure noise. Wrecks get a looser ceiling so a real crash can
+    // still tumble, but even they stay legible.
+    const angCap = this.wrecked ? 7.5 : 3.4;
+    const angLen = b.ang.length();
+    if (angLen > angCap) b.ang.multiplyScalar(angCap / angLen);
 
     b.integrate(dt);
 
@@ -418,14 +489,25 @@ export class Vehicle {
       // and redirect the existing speed rather than deleting it.
       this.wallSide = side;
       this.wallContact = 0.14;
-      b.ang.y *= 1 - Math.min(0.85, dt * 8);
       const fw = this.forward;
-      const dirSgn = fw.dot(f.tan) >= 0 ? 1 : -1;
-      _v4w.copy(f.tan).multiplyScalar(dirSgn);
+      // Which way along the barrier are we facing? At exactly 90deg this dot
+      // product is zero and the sign flips frame to frame, which is precisely
+      // how the car used to end up pinned nose-first into the wall at a dead
+      // stop: the corrector had no preferred direction and cancelled itself
+      // out. Latch the last confident answer through the ambiguous band.
+      const along = fw.dot(f.tan);
+      if (Math.abs(along) > 0.2) this.wallDir = along >= 0 ? 1 : -1;
+      else if (!this.wallDir) this.wallDir = b.vel.dot(f.tan) >= 0 ? 1 : -1;
+      _v4w.copy(f.tan).multiplyScalar(this.wallDir);
       const yawErr = Math.atan2(
         fw.x * _v4w.z - fw.z * _v4w.x,
         fw.x * _v4w.x + fw.z * _v4w.z);
-      b.ang.y += yawErr * Math.min(1, dt * 10) * 7;
+      // Drive the yaw *rate* toward a bounded target instead of accumulating
+      // into it. The shipped `ang.y += yawErr * dt*10 * 7` was an undamped P
+      // term fighting a separate `ang.y *= 1 - dt*8` decay: it overshot,
+      // oscillated, and could spin the car to 7 rad/s (400 deg/s).
+      const wantYaw = clamp(yawErr * 2.4, -2.6, 2.6);
+      b.ang.y += (wantYaw - b.ang.y) * Math.min(1, dt * 9);
       const tanSpeed = b.vel.dot(f.tan);
       const horiz = Math.hypot(b.vel.x, b.vel.z);
       if (horiz > 0.5) {
@@ -433,11 +515,21 @@ export class Vehicle {
         _v2.y = b.vel.y;
         b.vel.lerp(_v2, Math.min(1, dt * 6.0));
       }
+      // Anti-pin. Nose-in against the barrier the tyres point at the wall, so
+      // full throttle produces nothing at all and the car simply parks there
+      // until the recovery watchdog notices. Give the driver a shove along the
+      // barrier so holding accelerate always eventually means "go".
+      if (this.speed < 8 && this.input.throttle > 0.25 && !this.wrecked) {
+        b.applyCentralForce(_v2.copy(f.tan)
+          .multiplyScalar(this.wallDir * this.cfg.mass * 7 * this.input.throttle));
+      }
 
       if (vn < 0) {
         const j = -vn * (1 + 0.32) * this.cfg.mass;
         b.vel.addScaledVector(nrm, j / this.cfg.mass);
-        b.applyAngularImpulse(_v2.set(0, -side * Math.abs(vn) * 10, 0));
+        // A scrape should scuff the car, not spin it. The shipped *10 kick was
+        // enough to put a 40 m/s glancing blow into a full pirouette.
+        b.applyAngularImpulse(_v2.set(0, -side * Math.min(6, Math.abs(vn)) * 3, 0));
         const impact = Math.abs(vn);
         if (impact > 3 && this.onWallHit) {
           const cp = _v3.copy(b.pos).addScaledVector(nrm, -halfW);

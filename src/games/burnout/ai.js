@@ -124,7 +124,7 @@ export class RacerAI {
     const latAccel = 11.0 * (0.85 + this.skill * 0.20);   // m/s^2 the tyres can hold
     const decel = 14.0;                                    // m/s^2 under braking
     let curveAhead = 0;
-    let targetSpeed = veh.cfg.topSpeed * (0.58 + this.skill * 0.20);
+    let targetSpeed = veh.cfg.topSpeed * (0.80 + this.skill * 0.18);
     for (let d = 12; d <= 220; d += 16) {
       const c = Math.abs(t.frameAt(s + d, _frame).curv);
       if (d < 70) curveAhead = Math.max(curveAhead, c);

@@ -139,7 +139,7 @@ const shadowRes = Q.softwareGL ? 640 : ({ low: 512, med: 1024, high: 1024, ultra
 
 // 1. KEY — the only shadow caster. Hard, warm, up-table, so the ball and the
 //    flippers drop a crisp readable shadow onto the art.
-const key = new THREE.DirectionalLight(0xfff4e6, 1.55);
+const key = new THREE.DirectionalLight(0xffeed2, 1.45);
 key.position.set(-1.55, 3.05, -1.95);
 key.target.position.set(0, 0, -0.55);
 key.castShadow = true;
@@ -157,28 +157,30 @@ scene.add(key);
 scene.add(key.target);
 
 // 2. COOL RIM from behind the backbox — separates ramps and wireforms from the
-//    playfield art. Saturated blue against the warm key: instant contrast.
-const rim = new THREE.DirectionalLight(0x4aa8ff, 0.62);
+//    playfield art. A cold *steel* blue, not a saturated arcade blue: the
+//    reference is a station deck lit by service lamps, not a nightclub.
+const rim = new THREE.DirectionalLight(0x6f93b8, 0.44);
 rim.position.set(-1.2, 1.5, -2.6);
 rim.target.position.set(0, 0, -0.4);
 scene.add(rim);
 scene.add(rim.target);
 
 // 3. PLAYER-SIDE KICK — keeps the near cabinet face and the flippers off black.
-const sideKick = new THREE.DirectionalLight(0xff7ad0, 0.34);
+//    Warm sodium, which is what the amber apron art wants to bounce.
+const sideKick = new THREE.DirectionalLight(0xff9a4a, 0.30);
 sideKick.position.set(-2.0, 0.7, 1.9);
 sideKick.target.position.set(0, -0.1, -0.2);
 scene.add(sideKick);
 scene.add(sideKick.target);
 
 // 4. AMBIENT — low. Every unit of unshadowed fill cancels the key's shadows.
-const fill = new THREE.HemisphereLight(0x9ec8ff, 0x2a1440, 0.42);
+const fill = new THREE.HemisphereLight(0x8fa9c2, 0x161c22, 0.34);
 scene.add(fill);
 
 // 5. HOOD SPOT — the machine's own light, range-limited so the playfield is
 //    always the brightest thing in frame. This is what makes the table pop out
 //    of the dark room.
-const pfSpot = new THREE.SpotLight(0xf2f7ff, 2.30, 3.10, 0.74, 0.66, 1.0);
+const pfSpot = new THREE.SpotLight(0xfff2dc, 2.35, 3.10, 0.70, 0.72, 1.0);
 pfSpot.position.set(0.10, 1.46, -0.52);
 pfSpot.target.position.set(0.02, 0, -0.56);
 scene.add(pfSpot);
@@ -187,7 +189,7 @@ scene.add(pfSpot.target);
 // 6. LOWER-TABLE SPOT — the flippers are where the player's eyes actually
 //    live, and the key light rakes from up-table, so without this the whole
 //    business end of the table sits in shadow. Tight range, no shadow map.
-const lowSpot = new THREE.SpotLight(0xffe6cc, 1.85, 1.45, 0.92, 0.78, 1.0);
+const lowSpot = new THREE.SpotLight(0xffdcae, 1.75, 1.45, 0.92, 0.80, 1.0);
 lowSpot.position.set(0.0, 0.78, 0.20);
 lowSpot.target.position.set(0.0, 0, -0.18);
 scene.add(lowSpot);
@@ -880,7 +882,7 @@ function forceEvent(name) {
     case 'bumper':
       for (const bp of table.parts.bumpers) {
         bp.level = 1;
-        vfx.burst(bp.x, bp.y, new THREE.Color(0x8fd8ff), 20, 1.1, 0.03);
+        vfx.burst(bp.x, bp.y, new THREE.Color(0xffd9a8), 20, 1.1, 0.03);
       }
       audio.bumper(1);
       game.flash(0.2);

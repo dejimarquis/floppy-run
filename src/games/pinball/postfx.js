@@ -242,7 +242,7 @@ export class PostFX {
       }[q] || {};
     const u = this.comp.uniforms;
     u.uBloom.value = cfg.bloom ?? 0.6;
-    u.uAberration.value = cfg.ab ?? 1;
+    u.uAberration.value = cfg.ab ?? 0.25;
     u.uGrain.value = cfg.grain ?? 1;
     u.uAperture.value = cfg.dof ?? 1;
     this.bright.uniforms.uThreshold.value = cfg.thr ?? 1.0;

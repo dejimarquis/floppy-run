@@ -282,9 +282,9 @@ export class Flipper {
     this.omega = 0;
     this.pressed = false;
     this.enabled = true;
-    this.maxOmega = o.maxOmega ?? 34;
-    this.accel = o.accel ?? 2100;
-    this.returnAccel = o.returnAccel ?? 620;
+    this.maxOmega = o.maxOmega ?? 23;
+    this.accel = o.accel ?? 1300;
+    this.returnAccel = o.returnAccel ?? 470;
     this.hitAt = -1e9;
   }
 

@@ -22,15 +22,15 @@ const CSS = `
 .pb-chip span{font-size:20px;font-weight:800;letter-spacing:1px;color:#eaf2ff;
   font-variant-numeric:tabular-nums}
 .pb-chip.hot span{color:#ffd06a;text-shadow:0 0 14px rgba(255,170,50,.75)}
-.pb-chip.ml span{color:#5effc0;text-shadow:0 0 14px rgba(60,255,180,.7)}
+.pb-chip.ml span{color:#8fd89a;text-shadow:0 0 12px rgba(90,200,110,.55)}
 #pb-right{top:18px;right:24px;flex-direction:row;gap:10px}
 #pb-mission{position:absolute;left:26px;top:118px;transform:none;text-align:left;
   text-align:center;min-width:280px}
-#pb-mission .name{font-size:15px;letter-spacing:6px;font-weight:800;color:#9fd8ff;
+#pb-mission .name{font-size:15px;letter-spacing:6px;font-weight:800;color:#ffc46a;
   text-shadow:0 0 18px rgba(60,180,255,.7)}
 #pb-mission .sub{font-size:11px;letter-spacing:3px;color:#8fa4c8;margin-top:4px}
 #pb-mission .bar{height:3px;margin-top:8px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
-#pb-mission .bar i{display:block;height:100%;background:linear-gradient(90deg,#3ad0ff,#ffd06a);
+#pb-mission .bar i{display:block;height:100%;background:linear-gradient(90deg,#e0562c,#ffc04a);
   box-shadow:0 0 12px rgba(90,200,255,.9);transition:width .25s}
 #pb-banner{position:absolute;left:50%;top:70%;transform:translate(-50%,-50%) scale(.7);
   font-size:38px;font-weight:900;letter-spacing:8px;opacity:0;white-space:nowrap;
@@ -60,7 +60,7 @@ const CSS = `
 #pb-start.hide{opacity:0;pointer-events:none}
 #pb-start .card{text-align:center;color:#e6f0ff}
 #pb-start h1{font-size:74px;margin:0;font-weight:900;letter-spacing:9px;
-  background:linear-gradient(90deg,#ffe27a,#ff9a2f 40%,#ff3d7a 72%,#a44bff);
+  background:linear-gradient(90deg,#ffe27a,#ff9a2f 40%,#e0532c 72%,#7fa4c4);
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 0 26px rgba(255,140,50,.55))}
 #pb-start h2{font-size:13px;letter-spacing:11px;margin:6px 0 26px;color:#9fc0e8;font-weight:700}

@@ -75,31 +75,33 @@ export class CameraRig {
     let roll = 0;
 
     if (this.mode === 'table') {
-      // the classic fixed 3/4 shot: whole playfield plus the backbox
-      // oblique 3/4 hero: the machine runs diagonally across a 16:9 frame so
-      // the cabinet fills the width, and the legs, side art and lockdown bar
-      // all stay in shot.
-      px = 0.4790;
-      py = 0.5236;
-      pz = 0.2734;
-      tx = -0.014;
-      ty = 0.150;
-      tz = -0.482;
-      fov = 44;
-      roll = -0.030;
+      // THE Space Cadet shot: a fixed, high three-quarter view, near enough to
+      // the table's own axis that the whole playfield reads at once, steep
+      // enough that you are looking *down* the deck. The original never
+      // swooped and never went oblique — the machine sat still and you read
+      // the board. Backbox clipped at the top of frame, apron at the bottom.
+      px = 0.105;
+      py = 1.005;
+      pz = 0.625;
+      tx = -0.004;
+      ty = 0.048;
+      tz = -0.545;
+      fov = 42.5;
+      roll = 0;
     } else if (this.mode === 'follow') {
-      // The hero 3/4 framing, drifting with the ball. Deliberately anchored to
-      // the same oblique as 'table': a head-on view flattens the machine and
-      // throws away the side art, the legs and the cabinet silhouette.
+      // The same fixed framing with a whisper of parallax toward the ball.
+      // Deliberately tiny: the reference view is bolted down, and a camera
+      // that chases the ball around the board is the single most "modern
+      // videogame" thing a pinball table can do.
       const lower = THREE.MathUtils.clamp((bp.z + 0.75) / 0.75, 0, 1); // 1 = near flippers
-      px = 0.4636 - bp.x * 0.10 - lower * 0.030;
-      py = 0.5033 - lower * 0.036;
-      pz = 0.2600 - lower * 0.018;
-      tx = -0.014 + bp.x * 0.16;
-      ty = 0.1455 - lower * 0.022;
-      tz = -0.482 - bp.z * 0.10;
-      fov = 43 + lower * 1.5;
-      roll = -0.030;
+      px = 0.105 - bp.x * 0.045;
+      py = 1.005 - lower * 0.012;
+      pz = 0.625 - lower * 0.008;
+      tx = -0.004 + bp.x * 0.075;
+      ty = 0.048;
+      tz = -0.545 - bp.z * 0.035;
+      fov = 42.5 + lower * 0.8;
+      roll = 0;
     } else if (this.mode === 'ballcam') {
       // chase cam locked behind and above the ball: the ball is the hero
       // object, so it has to own the middle of the frame with the table

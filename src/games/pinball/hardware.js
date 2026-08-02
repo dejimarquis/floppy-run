@@ -307,10 +307,10 @@ export function buildHardware(table) {
 
   const domeSpec = [
     { x: -0.243, y: 0.735, c: 0xff4d2a },
-    { x: 0.211, y: 0.735, c: 0x39c6ff },
+    { x: 0.211, y: 0.735, c: 0x8fc4e8 },
     { x: -0.017, y: 0.9, c: 0xffc93c },
-    { x: 0.212, y: 0.315, c: 0xff3d7a },
-    { x: -0.246, y: 0.315, c: 0x7d5cff },
+    { x: 0.212, y: 0.315, c: 0xd8402c },
+    { x: -0.246, y: 0.315, c: 0x4fbf6e },
   ];
   const flashers = [];
   const domeGeo = new THREE.SphereGeometry(0.0135, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52);

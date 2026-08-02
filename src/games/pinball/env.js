@@ -22,13 +22,13 @@ export function buildEnvScene() {
   // room shell — very dark, slightly blue
   const room = new THREE.Mesh(
     new THREE.BoxGeometry(14, 6.4, 18),
-    new THREE.MeshStandardMaterial({ color: 0x0b0d14, roughness: 0.92, metalness: 0, side: THREE.BackSide })
+    new THREE.MeshStandardMaterial({ color: 0x0a0d11, roughness: 0.92, metalness: 0, side: THREE.BackSide })
   );
   room.position.y = 2.0;
   s.add(room);
 
   // ceiling gradient wash
-  const ceil = emissivePlane(14, 18, 0x2a3550, 0.35);
+  const ceil = emissivePlane(14, 18, 0x1e2a36, 0.26);
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = 5.15;
   s.add(ceil);
@@ -36,14 +36,14 @@ export function buildEnvScene() {
   // floor — dark carpet with a faint sheen
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(14, 18),
-    new THREE.MeshStandardMaterial({ color: 0x141020, roughness: 0.55, metalness: 0.05 })
+    new THREE.MeshStandardMaterial({ color: 0x10141a, roughness: 0.55, metalness: 0.05 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -1.2;
   s.add(floor);
 
   // warm overhead practicals (the classic arcade tube lights)
-  const tubeCols = [0xfff0d0, 0xffe0b0, 0xffd8a8];
+  const tubeCols = [0xffeccb, 0xffdca8, 0xffd096];
   for (let i = 0; i < 5; i++) {
     const t = emissivePlane(0.34, 5.2, tubeCols[i % 3], 14 - i * 1.1);
     t.rotation.x = Math.PI / 2;
@@ -51,13 +51,15 @@ export function buildEnvScene() {
     s.add(t);
   }
 
-  // neon strips on the walls — cyan / magenta, the arcade signature
+  // Service strips along the bay walls. Space Cadet is a naval space-station
+  // deck, not a nightclub: amber sodium, a red port marker and one cold white
+  // gantry tube. No cyan, no magenta.
   const neons = [
-    { c: 0x35d8ff, i: 22, p: [-6.6, 1.9, -3.4], r: [0, Math.PI / 2, 0], w: 0.12, h: 7.4 },
-    { c: 0xff2f7a, i: 20, p: [6.6, 2.4, -1.0], r: [0, -Math.PI / 2, 0], w: 0.12, h: 7.4 },
-    { c: 0x8b46ff, i: 16, p: [0, 3.4, -8.6], r: [0, 0, 0], w: 9.5, h: 0.13 },
-    { c: 0xffa22a, i: 14, p: [0, 0.6, -8.6], r: [0, 0, 0], w: 9.5, h: 0.1 },
-    { c: 0x2fffb0, i: 10, p: [-3.2, 0.2, 8.4], r: [0, Math.PI, 0], w: 5.0, h: 0.12 },
+    { c: 0xffb057, i: 9, p: [-6.6, 1.9, -3.4], r: [0, Math.PI / 2, 0], w: 0.12, h: 7.4 },
+    { c: 0xc8422a, i: 7, p: [6.6, 2.4, -1.0], r: [0, -Math.PI / 2, 0], w: 0.12, h: 7.4 },
+    { c: 0x8fa8bd, i: 7, p: [0, 3.4, -8.6], r: [0, 0, 0], w: 9.5, h: 0.13 },
+    { c: 0xffa22a, i: 8, p: [0, 0.6, -8.6], r: [0, 0, 0], w: 9.5, h: 0.1 },
+    { c: 0xffb877, i: 3, p: [-3.2, 0.2, 8.4], r: [0, Math.PI, 0], w: 5.0, h: 0.12 },
   ];
   for (const n of neons) {
     const m = emissivePlane(n.w, n.h, n.c, n.i);
@@ -68,27 +70,27 @@ export function buildEnvScene() {
 
   // a bank of other cabinets glowing in the background
   for (let i = 0; i < 7; i++) {
-    const hue = (i * 0.13 + 0.55) % 1;
-    const c = new THREE.Color().setHSL(hue, 0.85, 0.55);
+    // amber / green console glow, the colours a 90s ops room actually had
+    const c = new THREE.Color(i % 3 === 1 ? 0x8fb0c8 : 0xffab46);
     const cab = new THREE.Mesh(
       new THREE.BoxGeometry(0.9, 1.9, 0.6),
       new THREE.MeshStandardMaterial({ color: 0x0e1018, roughness: 0.5, metalness: 0.2 })
     );
     cab.position.set(-5.4 + i * 1.8, 0.0, -7.4);
     s.add(cab);
-    const scr = emissivePlane(0.62, 0.86, c, 5.5);
+    const scr = emissivePlane(0.62, 0.86, c, 3.0);
     scr.position.set(-5.4 + i * 1.8, 0.42, -7.05);
     s.add(scr);
   }
 
   // warm key bounce from the player's side (front fill)
-  const fill = emissivePlane(8, 3.2, 0xffb877, 1.9);
+  const fill = emissivePlane(8, 3.2, 0xffb877, 1.5);
   fill.position.set(0, 1.2, 7.6);
   fill.rotation.y = Math.PI;
   s.add(fill);
 
-  s.add(new THREE.AmbientLight(0x223044, 0.6));
-  const dl = new THREE.DirectionalLight(0xfff2dd, 1.4);
+  s.add(new THREE.AmbientLight(0x1b2530, 0.5));
+  const dl = new THREE.DirectionalLight(0xfff0d6, 1.25);
   dl.position.set(2, 6, 3);
   s.add(dl);
 
@@ -129,9 +131,9 @@ export function buildBackdrop() {
         float h = d.y*0.5+0.5;
 
         // --- room shell: dark walls, slightly warmer floor ----------------
-        vec3 ceil = vec3(0.008,0.009,0.019);
-        vec3 wall = vec3(0.030,0.026,0.055);
-        vec3 floorC = vec3(0.011,0.010,0.018);
+        vec3 ceil = vec3(0.007,0.009,0.013);
+        vec3 wall = vec3(0.026,0.031,0.040);
+        vec3 floorC = vec3(0.009,0.011,0.014);
         vec3 c = mix(floorC, wall, smoothstep(0.06,0.46,h));
         c = mix(c, ceil, smoothstep(0.54,0.95,h));
 
@@ -149,7 +151,7 @@ export function buildBackdrop() {
 
         // dado rail + skirting board, both catching a little practical light
         float dado = 1.0 - smoothstep(0.0, 0.006, abs(ele - 0.128));
-        c += vec3(0.030,0.026,0.044) * dado;
+        c += vec3(0.028,0.031,0.038) * dado;
         c *= mix(1.0, 0.55, 1.0 - smoothstep(0.0, 0.016, abs(ele - 0.118)));
         float skirt = smoothstep(-0.052, -0.030, ele) * (1.0 - smoothstep(-0.030, -0.014, ele));
         c *= mix(1.0, 0.36, skirt);
@@ -166,8 +168,9 @@ export function buildBackdrop() {
           float cy = base + hh;
           float dd = box(vec2(az - ax, ele - cy), vec2(wdt, hh));
           float body = 1.0 - smoothstep(0.0, 0.010, dd);
-          c = mix(c, vec3(0.014,0.013,0.024), body * 0.95);
-          vec3 mcol = 0.5 + 0.5*cos(vec3(0.0,2.1,4.2) + fi*1.7);
+          c = mix(c, vec3(0.012,0.014,0.018), body * 0.95);
+          // amber / green console family only — no rainbow marquees
+          vec3 mcol = mix(vec3(1.00,0.62,0.22), vec3(0.42,0.72,0.50), step(1.5, mod(fi,3.0)));
           // lit backglass panel
           float scr = 1.0 - smoothstep(0.0, 0.008,
             box(vec2(az - ax, ele - (base + hh*1.42)), vec2(wdt*0.70, hh*0.30)));
@@ -183,20 +186,20 @@ export function buildBackdrop() {
 
         // --- neon tube strips along the far wall ---------------------------
         float t1 = 1.0 - smoothstep(0.0, 0.005, abs(ele - 0.470));
-        c += vec3(0.55,0.16,0.95) * t1 * (0.7 + 0.3*sin(uTime*0.7 + az*3.0));
-        c += vec3(0.10,0.03,0.18) * (1.0 - smoothstep(0.0, 0.05, abs(ele - 0.470)));
+        c += vec3(0.62,0.36,0.12) * t1 * (0.8 + 0.2*sin(uTime*0.7 + az*3.0));
+        c += vec3(0.09,0.05,0.02) * (1.0 - smoothstep(0.0, 0.05, abs(ele - 0.470)));
         float t2 = 1.0 - smoothstep(0.0, 0.004, abs(ele - 0.575));
-        c += vec3(0.14,0.62,0.92) * t2;
-        c += vec3(0.02,0.09,0.14) * (1.0 - smoothstep(0.0, 0.045, abs(ele - 0.575)));
+        c += vec3(0.34,0.40,0.46) * t2;
+        c += vec3(0.04,0.05,0.06) * (1.0 - smoothstep(0.0, 0.045, abs(ele - 0.575)));
 
         // --- soft, evenly spread glow near the horizon ------------------------
-        c += vec3(0.022,0.015,0.040) * pow(max(0.0, 1.0-abs(ele+0.05)*2.4), 3.0);
-        c += vec3(0.016,0.018,0.034) * pow(max(0.0, ele), 1.5);
-        c += vec3(0.030,0.016,0.048) * pow(max(0.0, 1.0-abs(az*0.3183)), 2.0) * 0.5;
+        c += vec3(0.026,0.020,0.016) * pow(max(0.0, 1.0-abs(ele+0.05)*2.4), 3.0);
+        c += vec3(0.016,0.019,0.024) * pow(max(0.0, ele), 1.5);
+        c += vec3(0.030,0.022,0.014) * pow(max(0.0, 1.0-abs(az*0.3183)), 2.0) * 0.5;
 
         // --- floor sheen under the machine -----------------------------------
         float fl = smoothstep(0.0, -0.35, ele);
-        c += vec3(0.024,0.022,0.042) * fl;
+        c += vec3(0.022,0.024,0.030) * fl;
 
         // dither to kill banding
         c += (hash(d.xy*512.0) - 0.5) * 0.006;
@@ -226,7 +229,7 @@ export function buildFloor(env) {
       // brightest object in frame — that tonal separation is most of the
       // "AAA product shot" illusion. The carpet art stays; it is just
       // driven down to a whisper and only recovers inside the light pools.
-      color: 0x0a0a11,
+      color: 0x080a0d,
       // Polished dark arcade floor: glossy enough to mirror the neon into long
       // vertical streaks, but almost no diffuse ambient. Flat diffuse from the
       // IBL is what turned 40% of the frame into featureless grey.
@@ -239,7 +242,7 @@ export function buildFloor(env) {
       // in for the ambient bounce a real arcade floor picks up.
       emissive: 0xffffff,
       emissiveMap: carpet,
-      emissiveIntensity: 0.085,
+      emissiveIntensity: 0.05,
     })
   );
   floor.rotation.x = -Math.PI / 2;
@@ -256,10 +259,10 @@ export function buildFloor(env) {
   c.height = 256;
   const x = c.getContext('2d');
   const grd = x.createRadialGradient(128, 128, 8, 128, 128, 128);
-  grd.addColorStop(0, 'rgba(150,172,235,0.115)');
-  grd.addColorStop(0.22, 'rgba(110,130,200,0.060)');
-  grd.addColorStop(0.48, 'rgba(78,62,142,0.026)');
-  grd.addColorStop(0.78, 'rgba(42,32,82,0.008)');
+  grd.addColorStop(0, 'rgba(158,166,182,0.070)');
+  grd.addColorStop(0.22, 'rgba(118,126,142,0.034)');
+  grd.addColorStop(0.48, 'rgba(72,80,92,0.014)');
+  grd.addColorStop(0.78, 'rgba(34,40,48,0.005)');
   grd.addColorStop(1, 'rgba(0,0,0,0)');
   x.fillStyle = grd;
   x.fillRect(0, 0, 256, 256);
@@ -323,9 +326,9 @@ function marqueeTexture(hue, title) {
   c.height = 72;
   const x = c.getContext('2d');
   const gr = x.createLinearGradient(0, 0, 256, 72);
-  gr.addColorStop(0, `hsl(${hue},92%,26%)`);
-  gr.addColorStop(0.5, `hsl(${(hue + 34) % 360},96%,52%)`);
-  gr.addColorStop(1, `hsl(${(hue + 300) % 360},90%,30%)`);
+  gr.addColorStop(0, `hsl(${hue},46%,18%)`);
+  gr.addColorStop(0.5, `hsl(${(hue + 14) % 360},54%,40%)`);
+  gr.addColorStop(1, `hsl(${(hue + 340) % 360},44%,20%)`);
   x.fillStyle = gr;
   x.fillRect(0, 0, 256, 72);
   x.fillStyle = 'rgba(0,0,0,0.42)';
@@ -334,8 +337,8 @@ function marqueeTexture(hue, title) {
   x.font = '900 34px "Arial Black", Impact, sans-serif';
   x.textAlign = 'center';
   x.textBaseline = 'middle';
-  x.shadowColor = `hsl(${hue},100%,60%)`;
-  x.shadowBlur = 18;
+  x.shadowColor = `hsl(${hue},70%,52%)`;
+  x.shadowBlur = 14;
   x.fillText(title, 128, 38);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -354,7 +357,7 @@ function screenTexture(hue) {
   x.fillRect(0, 0, 128, 160);
 
   const H = hue / 360;
-  const hs = (l, a) => `hsla(${hue},88%,${l}%,${a})`;
+  const hs = (l, a) => `hsla(${hue},52%,${l}%,${a})`;
 
   // horizon glow
   const gl = x.createLinearGradient(0, 160, 0, 40);
@@ -434,30 +437,32 @@ export function buildNeighbours(env) {
   const FLOOR = -1.06;
 
   const body = new THREE.MeshStandardMaterial({
-    color: 0x0b0e1a,
+    color: 0x0d1116,
     roughness: 0.30,
     metalness: 0.55,
     envMap: env || null,
     envMapIntensity: 0.22,
   });
   const trim = new THREE.MeshStandardMaterial({
-    color: 0x1a2138,
+    color: 0x1d2530,
     roughness: 0.22,
     metalness: 0.85,
     envMap: env || null,
     envMapIntensity: 0.42,
   });
 
+  // Service racks along the bay wall. Restricted to the station palette:
+  // amber, signal red, deck green and steel blue.
   const defs = [
-    { x: -3.10, z: -3.35, ry: 0.42, hue: 288, t: 'ASTRO' },
-    { x: -4.35, z: -1.85, ry: 0.62, hue: 196, t: 'VECTOR' },
-    { x: -5.15, z: -0.10, ry: 0.80, hue: 32, t: 'RAID' },
-    { x: 3.35, z: -2.85, ry: -0.42, hue: 340, t: 'TURBO' },
-    { x: 4.65, z: -1.15, ry: -0.66, hue: 152, t: 'DELTA' },
-    { x: -1.75, z: -5.05, ry: 0.16, hue: 258, t: 'ORBIT' },
-    { x: 0.85, z: -5.35, ry: -0.12, hue: 18, t: 'NOVA II' },
-    { x: -6.05, z: 1.60, ry: 0.96, hue: 214, t: 'PULSAR' },
-    { x: 2.55, z: -4.65, ry: -0.24, hue: 96, t: 'HYPER' },
+    { x: -3.10, z: -3.35, ry: 0.42, hue: 34, t: 'DOCK 1' },
+    { x: -4.35, z: -1.85, ry: 0.62, hue: 206, t: 'NAV' },
+    { x: -5.15, z: -0.10, ry: 0.80, hue: 32, t: 'FUEL' },
+    { x: 3.35, z: -2.85, ry: -0.42, hue: 8, t: 'ALERT' },
+    { x: 4.65, z: -1.15, ry: -0.66, hue: 140, t: 'LIFE' },
+    { x: -1.75, z: -5.05, ry: 0.16, hue: 206, t: 'ORBIT' },
+    { x: 0.85, z: -5.35, ry: -0.12, hue: 34, t: 'CARGO' },
+    { x: -6.05, z: 1.60, ry: 0.96, hue: 206, t: 'COMMS' },
+    { x: 2.55, z: -4.65, ry: -0.24, hue: 140, t: 'SCAN' },
   ];
 
   for (const d of defs) {
@@ -476,7 +481,7 @@ export function buildNeighbours(env) {
     c.add(bez);
     const scr = new THREE.Mesh(
       new THREE.PlaneGeometry(W * 0.74, 0.50),
-      new THREE.MeshBasicMaterial({ map: screenTexture(d.hue), toneMapped: true })
+      new THREE.MeshBasicMaterial({ map: screenTexture(d.hue), color: 0x3d4650, toneMapped: true })
     );
     scr.position.set(0, FLOOR + 1.20, D / 2 + 0.026);
     c.add(scr);
@@ -484,7 +489,7 @@ export function buildNeighbours(env) {
     // marquee
     const mq = new THREE.Mesh(
       new THREE.PlaneGeometry(W * 0.92, 0.24),
-      new THREE.MeshBasicMaterial({ map: marqueeTexture(d.hue, d.t), toneMapped: true })
+      new THREE.MeshBasicMaterial({ map: marqueeTexture(d.hue, d.t), color: 0x525a63, toneMapped: true })
     );
     mq.position.set(0, FLOOR + 1.62, D / 2 + 0.014);
     c.add(mq);
@@ -503,7 +508,7 @@ export function buildNeighbours(env) {
       const neon = new THREE.Mesh(
         new THREE.BoxGeometry(0.018, H * 0.78, 0.018),
         new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setHSL(((d.hue + 20) % 360) / 360, 0.95, 0.52),
+          color: new THREE.Color().setHSL(d.hue / 360, 0.42, 0.20),
         })
       );
       neon.position.set(sgn * (W / 2 + 0.006), FLOOR + H * 0.52, D / 2 - 0.03);
@@ -520,11 +525,11 @@ export function buildNeighbours(env) {
       new THREE.PlaneGeometry(1.5, 1.5),
       new THREE.MeshBasicMaterial({
         map: puddleTex(),
-        color: new THREE.Color().setHSL(d.hue / 360, 0.9, 0.5),
+        color: new THREE.Color().setHSL(d.hue / 360, 0.6, 0.46),
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        opacity: 0.30,
+        opacity: 0.08,
       })
     );
     pud.rotation.x = -Math.PI / 2;
@@ -558,11 +563,11 @@ function wallTexture(seed = 1) {
   const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
 
   const gr = x.createLinearGradient(0, 0, 0, H);
-  gr.addColorStop(0, '#243050');
-  gr.addColorStop(0.30, '#35446e');
-  gr.addColorStop(0.62, '#3c4c78');
-  gr.addColorStop(0.88, '#212b48');
-  gr.addColorStop(1, '#131828');
+  gr.addColorStop(0, '#232c34');
+  gr.addColorStop(0.30, '#323e48');
+  gr.addColorStop(0.62, '#39454f');
+  gr.addColorStop(0.88, '#1f272e');
+  gr.addColorStop(1, '#12171c');
   x.fillStyle = gr;
   x.fillRect(0, 0, W, H);
 
@@ -575,24 +580,24 @@ function wallTexture(seed = 1) {
       const bx = col * bw + off;
       const by = row * bh;
       const v = (rnd() - 0.5) * 26;
-      x.fillStyle = `rgba(${Math.round(58 + v)},${Math.round(72 + v)},${Math.round(114 + v)},0.5)`;
+      x.fillStyle = `rgba(${Math.round(60 + v)},${Math.round(72 + v)},${Math.round(84 + v)},0.5)`;
       x.fillRect(bx + 1.5, by + 1.5, bw - 3, bh - 3);
       x.fillStyle = 'rgba(0,0,0,0.44)';
       x.fillRect(bx, by, bw, 1.5);
       x.fillRect(bx, by, 1.5, bh);
-      x.fillStyle = 'rgba(190,210,255,0.11)';
+      x.fillStyle = 'rgba(200,214,226,0.11)';
       x.fillRect(bx + 1.5, by + bh - 2.5, bw - 3, 1);
     }
   }
 
   // dado rail + skirting
-  x.fillStyle = '#4a5880';
+  x.fillStyle = '#4a5560';
   x.fillRect(0, H * 0.60, W, 10);
-  x.fillStyle = 'rgba(200,220,255,0.3)';
+  x.fillStyle = 'rgba(210,222,232,0.3)';
   x.fillRect(0, H * 0.60, W, 2);
   x.fillStyle = 'rgba(0,0,0,0.55)';
   x.fillRect(0, H * 0.60 + 10, W, 5);
-  x.fillStyle = '#1c2440';
+  x.fillStyle = '#1a2129';
   x.fillRect(0, H - 34, W, 34);
   x.fillStyle = 'rgba(0,0,0,0.6)';
   x.fillRect(0, H - 36, W, 3);
@@ -611,27 +616,27 @@ function wallTexture(seed = 1) {
   // stencilled service text and a conduit run
   x.save();
   x.globalAlpha = 0.24;
-  x.fillStyle = '#8fa6d8';
+  x.fillStyle = '#93a4b2';
   x.font = '700 15px "Helvetica Neue", Arial, sans-serif';
-  x.fillText('NO SMOKING  ·  BAY 04', 44, H * 0.52);
-  x.fillText('CHANGE MACHINE →', W - 260, H * 0.52);
+  x.fillText('PRESSURE DOOR  ·  BAY 04', 44, H * 0.52);
+  x.fillText('AIRLOCK →', W - 260, H * 0.52);
   x.restore();
-  x.strokeStyle = 'rgba(90,105,150,0.35)';
+  x.strokeStyle = 'rgba(96,110,124,0.35)';
   x.lineWidth = 5;
   x.beginPath();
   x.moveTo(0, 52);
   x.lineTo(W, 52);
   x.stroke();
   for (let i = 0; i < 9; i++) {
-    x.fillStyle = 'rgba(60,72,110,0.55)';
+    x.fillStyle = 'rgba(62,74,86,0.55)';
     x.fillRect(i * 128 + 30, 44, 12, 18);
   }
 
   // wash from the ceiling troughs: real rooms are brightest where the
   // fixtures are, and a flat-lit wall is the classic 'untextured box' tell
   const wash = x.createLinearGradient(0, 0, 0, H * 0.62);
-  wash.addColorStop(0, 'rgba(150,180,255,0.30)');
-  wash.addColorStop(0.35, 'rgba(120,150,225,0.13)');
+  wash.addColorStop(0, 'rgba(206,200,180,0.26)');
+  wash.addColorStop(0.35, 'rgba(160,158,148,0.11)');
   wash.addColorStop(1, 'rgba(0,0,0,0)');
   x.fillStyle = wash;
   x.fillRect(0, 0, W, H * 0.62);
@@ -651,9 +656,9 @@ function posterTexture(hue, title, sub) {
   const x = c.getContext('2d');
 
   const gr = x.createLinearGradient(0, 0, W * 0.4, H);
-  gr.addColorStop(0, `hsl(${hue},80%,10%)`);
-  gr.addColorStop(0.55, `hsl(${(hue + 24) % 360},86%,26%)`);
-  gr.addColorStop(1, `hsl(${(hue + 300) % 360},78%,8%)`);
+  gr.addColorStop(0, `hsl(${hue},40%,8%)`);
+  gr.addColorStop(0.55, `hsl(${(hue + 12) % 360},48%,22%)`);
+  gr.addColorStop(1, `hsl(${(hue + 340) % 360},38%,7%)`);
   x.fillStyle = gr;
   x.fillRect(0, 0, W, H);
 
@@ -662,7 +667,7 @@ function posterTexture(hue, title, sub) {
   x.translate(W * 0.5, H * 0.42);
   for (let i = 0; i < 22; i++) {
     x.rotate((Math.PI * 2) / 22);
-    x.fillStyle = i % 2 ? `hsla(${(hue + 40) % 360},96%,62%,0.14)` : 'rgba(0,0,0,0)';
+    x.fillStyle = i % 2 ? `hsla(${(hue + 16) % 360},56%,52%,0.11)` : 'rgba(0,0,0,0)';
     x.beginPath();
     x.moveTo(0, 0);
     x.lineTo(200, -26);
@@ -674,14 +679,14 @@ function posterTexture(hue, title, sub) {
 
   // planet / ring motif
   const rg = x.createRadialGradient(W * 0.5, H * 0.40, 6, W * 0.5, H * 0.40, 74);
-  rg.addColorStop(0, `hsl(${(hue + 46) % 360},98%,72%)`);
-  rg.addColorStop(0.7, `hsl(${(hue + 20) % 360},92%,40%)`);
-  rg.addColorStop(1, `hsla(${hue},90%,14%,0)`);
+  rg.addColorStop(0, `hsl(${(hue + 20) % 360},58%,62%)`);
+  rg.addColorStop(0.7, `hsl(${(hue + 10) % 360},52%,32%)`);
+  rg.addColorStop(1, `hsla(${hue},48%,12%,0)`);
   x.fillStyle = rg;
   x.beginPath();
   x.arc(W * 0.5, H * 0.40, 74, 0, Math.PI * 2);
   x.fill();
-  x.strokeStyle = `hsla(${(hue + 60) % 360},98%,78%,0.85)`;
+  x.strokeStyle = `hsla(${(hue + 24) % 360},56%,70%,0.75)`;
   x.lineWidth = 5;
   x.save();
   x.translate(W * 0.5, H * 0.40);
@@ -698,11 +703,11 @@ function posterTexture(hue, title, sub) {
   x.fillStyle = '#fff';
   x.textAlign = 'center';
   x.font = '900 34px "Arial Black", Impact, sans-serif';
-  x.shadowColor = `hsl(${(hue + 40) % 360},100%,60%)`;
-  x.shadowBlur = 16;
+  x.shadowColor = `hsl(${(hue + 16) % 360},62%,50%)`;
+  x.shadowBlur = 12;
   x.fillText(title, W / 2, H * 0.78);
   x.shadowBlur = 0;
-  x.fillStyle = `hsl(${(hue + 50) % 360},90%,66%)`;
+  x.fillStyle = `hsl(${(hue + 20) % 360},52%,60%)`;
   x.font = '700 12px "Helvetica Neue", Arial, sans-serif';
   x.fillText(sub, W / 2, H * 0.845);
 
@@ -733,8 +738,8 @@ function neonSignTexture(text, hue) {
   x.textAlign = 'center';
   x.textBaseline = 'middle';
   x.font = '900 128px "Arial Black", Impact, sans-serif';
-  const core = `hsl(${hue},100%,92%)`;
-  const halo = `hsl(${hue},100%,58%)`;
+  const core = `hsl(${hue},60%,86%)`;
+  const halo = `hsl(${hue},72%,46%)`;
   x.lineJoin = 'round';
   // outer bloom passes
   for (const [w, a] of [[38, 0.10], [26, 0.16], [16, 0.26], [9, 0.5]]) {
@@ -790,7 +795,7 @@ export function buildRoomDressing(env) {
   // ceiling with recessed light troughs
   const ceil = new THREE.Mesh(
     new THREE.PlaneGeometry(22, 16),
-    new THREE.MeshStandardMaterial({ color: 0x18203a, roughness: 0.96, metalness: 0 })
+    new THREE.MeshStandardMaterial({ color: 0x161c22, roughness: 0.96, metalness: 0 })
   );
   ceil.rotation.x = Math.PI / 2;
   ceil.position.set(0, CEIL, -1.0);
@@ -800,13 +805,13 @@ export function buildRoomDressing(env) {
     const z = -6.2 + i * 1.55;
     const trough = new THREE.Mesh(
       new THREE.BoxGeometry(9.5, 0.10, 0.20),
-      new THREE.MeshStandardMaterial({ color: 0x11131f, roughness: 0.5, metalness: 0.7 })
+      new THREE.MeshStandardMaterial({ color: 0x10141a, roughness: 0.5, metalness: 0.7 })
     );
     trough.position.set(0, CEIL - 0.06, z);
     g.add(trough);
     const tube = new THREE.Mesh(
       new THREE.PlaneGeometry(9.2, 0.13),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9fc0ff).multiplyScalar(1.9) })
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0xbcc8d2).multiplyScalar(1.35) })
     );
     tube.rotation.x = Math.PI / 2;
     tube.position.set(0, CEIL - 0.115, z);
@@ -825,7 +830,7 @@ export function buildRoomDressing(env) {
     const shade = new THREE.Mesh(
       new THREE.ConeGeometry(0.30, 0.24, 24, 1, true),
       new THREE.MeshStandardMaterial({
-        color: 0x1b2136,
+        color: 0x1a2028,
         roughness: 0.35,
         metalness: 0.75,
         side: THREE.DoubleSide,
@@ -837,7 +842,7 @@ export function buildRoomDressing(env) {
     g.add(shade);
     const bulb = new THREE.Mesh(
       new THREE.SphereGeometry(0.075, 12, 10),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffcf96).multiplyScalar(2.6) })
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc98a).multiplyScalar(2.2) })
     );
     bulb.position.set(px, CEIL - 0.78, z);
     g.add(bulb);
@@ -849,7 +854,7 @@ export function buildRoomDressing(env) {
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        opacity: 0.34,
+        opacity: 0.16,
       })
     );
     halo.position.set(px, CEIL - 0.79, z);
@@ -859,14 +864,14 @@ export function buildRoomDressing(env) {
 
   // framed posters on the walls
   const posters = [
-    { p: [-7.54, 0.28, -3.30], ry: Math.PI / 2, hue: 288, t: 'ASTRO', s: 'DEFEND THE RIM' },
-    { p: [-7.54, 0.24, -1.05], ry: Math.PI / 2, hue: 196, t: 'VECTOR', s: 'HIGH SCORE CHALLENGE' },
-    { p: [-3.90, 0.30, -7.33], ry: 0, hue: 26, t: 'RAID', s: 'TWO PLAYER ACTION' },
-    { p: [3.60, 0.30, -7.33], ry: 0, hue: 152, t: 'DELTA', s: 'NEW FOR 1994' },
-    { p: [7.74, 0.26, -2.60], ry: -Math.PI / 2, hue: 340, t: 'TURBO', s: 'FEEL THE G-FORCE' },
+    { p: [-7.54, 0.28, -3.30], ry: Math.PI / 2, hue: 206, t: 'ND-7', s: 'ORBITAL DEFENCE COMMAND' },
+    { p: [-7.54, 0.24, -1.05], ry: Math.PI / 2, hue: 34, t: 'CADET', s: 'FLEET TRAINING PROGRAMME' },
+    { p: [-3.90, 0.30, -7.33], ry: 0, hue: 26, t: 'FUEL', s: 'HANDLE WITH CARE' },
+    { p: [3.60, 0.30, -7.33], ry: 0, hue: 140, t: 'DECK 3', s: 'LIFE SUPPORT NOMINAL' },
+    { p: [7.74, 0.26, -2.60], ry: -Math.PI / 2, hue: 8, t: 'ALERT', s: 'HULL BREACH DRILL' },
   ];
   const frameMat = new THREE.MeshStandardMaterial({
-    color: 0x0a0c16,
+    color: 0x0c1014,
     roughness: 0.34,
     metalness: 0.6,
     envMap: env || null,
@@ -889,13 +894,13 @@ export function buildRoomDressing(env) {
 
   // the big neon room sign
   const signs = [
-    { p: [-7.48, 0.96, -3.6], ry: Math.PI / 2, w: 3.2, h: 0.8, txt: 'ARCADE', hue: 316 },
-    { p: [0.4, 1.02, -7.28], ry: 0, w: 3.0, h: 0.75, txt: 'GALAXY', hue: 190 },
+    { p: [-7.48, 0.96, -3.6], ry: Math.PI / 2, w: 3.2, h: 0.8, txt: 'BAY 04', hue: 34 },
+    { p: [0.4, 1.02, -7.28], ry: 0, w: 3.0, h: 0.75, txt: 'DOCK', hue: 24 },
   ];
   for (const sd of signs) {
     const backer = new THREE.Mesh(
       new THREE.BoxGeometry(sd.w, sd.h, 0.06),
-      new THREE.MeshStandardMaterial({ color: 0x05060c, roughness: 0.6, metalness: 0.4 })
+      new THREE.MeshStandardMaterial({ color: 0x06090c, roughness: 0.6, metalness: 0.4 })
     );
     backer.position.set(sd.p[0], sd.p[1], sd.p[2]);
     backer.rotation.y = sd.ry;
@@ -920,7 +925,7 @@ export function buildRoomDressing(env) {
 
   // a change machine and a bin so the floor line is not an empty sweep
   const boxMat = new THREE.MeshStandardMaterial({
-    color: 0x121728,
+    color: 0x141a20,
     roughness: 0.42,
     metalness: 0.55,
     envMap: env || null,

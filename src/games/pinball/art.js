@@ -327,54 +327,107 @@ export function makePlayfieldArt(res = 2048) {
   // background flattens all of it into one pastel field no matter how the
   // light rig is tuned, so the deep-space base is kept down at 5-12% value
   // and the nebulae are used sparingly as accents rather than as ground.
+  // Space Cadet reads as a *steel deck* first and deep space second: the
+  // negative space is blue-grey gunmetal, not a purple nebula field. Stars
+  // and planets are a window motif at the top of the board, not the ground.
   const bg = g.createLinearGradient(0, 0, W * 0.4, H);
-  bg.addColorStop(0, '#0a1130');
-  bg.addColorStop(0.28, '#0d1743');
-  bg.addColorStop(0.55, '#090f2c');
-  bg.addColorStop(0.8, '#070a1e');
-  bg.addColorStop(1, '#04050f');
+  bg.addColorStop(0, '#1a2431');
+  bg.addColorStop(0.28, '#22303f');
+  bg.addColorStop(0.55, '#1b2632');
+  bg.addColorStop(0.8, '#141c26');
+  bg.addColorStop(1, '#0c1119');
   g.fillStyle = bg;
   g.fillRect(0, 0, W, H);
 
-  nebula(p, rnd, W * 0.32, H * 0.2, W * 0.62, 268, 0.26);
-  nebula(p, rnd, W * 0.78, H * 0.38, W * 0.42, 196, 0.19);
-  nebula(p, rnd, W * 0.2, H * 0.62, W * 0.5, 322, 0.13);
-  nebula(p, rnd, W * 0.6, H * 0.85, W * 0.45, 292, 0.12);
-  starfield(p, rnd, 2600, 2.4, 1.0);
+  // A single cold nebula wash up-table where the starfield window sits.
+  nebula(p, rnd, W * 0.42, H * 0.14, W * 0.55, 210, 0.16);
+  nebula(p, rnd, W * 0.74, H * 0.30, W * 0.34, 198, 0.10);
+  starfield(p, rnd, 1500, 2.1, 0.75);
 
-  // distant galaxy swirl top-left
+  /* ---- riveted steel deck plating ------------------------------- */
+  // The XP table is painted sheet metal: big plates, recessed seams, rows of
+  // rivets, and stencilled bay numbers. This layer is what makes the board
+  // read as a hangar deck instead of a nightclub floor.
   g.save();
-  g.globalCompositeOperation = 'screen';
-  g.translate(W * 0.22, H * 0.1);
-  g.rotate(0.6);
-  g.scale(1, 0.42);
-  for (let i = 0; i < 90; i++) {
-    const t = i / 90;
-    const a = t * 9;
-    const r = t * W * 0.3;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    g.fillStyle = `hsla(${210 + t * 90},80%,${72 - t * 34}%,${0.13 * (1 - t)})`;
+  const plateH = H / 9;
+  for (let row = 0; row < 9; row++) {
+    const yy = row * plateH;
+    const off = row % 2 ? W * 0.09 : 0;
+    const cols = 5;
+    for (let col = -1; col <= cols; col++) {
+      const xx = col * (W / cols) + off;
+      const tone = (rnd() - 0.5) * 12;
+      g.fillStyle = `rgba(${(58 + tone) | 0},${(74 + tone) | 0},${(92 + tone) | 0},0.20)`;
+      g.fillRect(xx + 2, yy + 2, W / cols - 4, plateH - 4);
+      // recessed seam: dark groove with a lit top lip
+      g.fillStyle = 'rgba(6,10,16,0.42)';
+      g.fillRect(xx, yy, W / cols, 3);
+      g.fillRect(xx, yy, 3, plateH);
+      g.fillStyle = 'rgba(168,196,224,0.10)';
+      g.fillRect(xx + 3, yy + 3, W / cols - 6, 1.5);
+    }
+  }
+  // rivet rows along every seam
+  const rivet = (x, y, r) => {
+    g.fillStyle = 'rgba(8,12,18,0.5)';
     g.beginPath();
-    g.arc(x, y, W * 0.05 * (1 - t * 0.6), 0, 7);
+    g.arc(x, y + r * 0.5, r, 0, 7);
     g.fill();
+    g.fillStyle = 'rgba(150,178,206,0.34)';
+    g.beginPath();
+    g.arc(x, y, r * 0.85, 0, 7);
+    g.fill();
+    g.fillStyle = 'rgba(226,238,250,0.30)';
+    g.beginPath();
+    g.arc(x - r * 0.28, y - r * 0.30, r * 0.34, 0, 7);
+    g.fill();
+  };
+  const rr = p.S(0.0038);
+  for (let row = 0; row <= 9; row++) {
+    const yy = row * plateH + 8;
+    for (let i = 0; i < 30; i++) rivet((i + 0.5) * (W / 30), yy, rr);
   }
   g.restore();
 
-  /* ---- big planet, top-left ------------------------------------ */
-  planet(p, rnd, p.X(-0.2), p.Y(0.96), p.S(0.115), 205, true);
-  planet(p, rnd, p.X(0.185), p.Y(1.02), p.S(0.045), 28, false);
+  /* ---- starfield window through the deck, up-table --------------- */
+  g.save();
+  g.beginPath();
+  g.ellipse(p.X(-0.019), p.Y(1.01), p.S(0.30), p.S(0.19), 0, 0, 7);
+  g.clip();
+  g.fillStyle = '#050810';
+  g.fillRect(0, 0, W, H);
+  starfield(p, rnd, 900, 2.6, 1.0);
+  planet(p, rnd, p.X(-0.17), p.Y(1.00), p.S(0.078), 28, true);
+  planet(p, rnd, p.X(0.175), p.Y(1.055), p.S(0.034), 205, false);
+  g.restore();
+  // heavy steel bezel around the window
+  g.save();
+  g.strokeStyle = 'rgba(6,10,16,0.9)';
+  g.lineWidth = p.S(0.0090);
+  g.beginPath();
+  g.ellipse(p.X(-0.019), p.Y(1.01), p.S(0.30), p.S(0.19), 0, 0, 7);
+  g.stroke();
+  g.strokeStyle = 'rgba(150,178,206,0.42)';
+  g.lineWidth = p.S(0.0026);
+  g.beginPath();
+  g.ellipse(p.X(-0.019), p.Y(1.01), p.S(0.296), p.S(0.186), 0, 0, 7);
+  g.stroke();
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2;
+    rivet(p.X(-0.019) + Math.cos(a) * p.S(0.306), p.Y(1.01) + Math.sin(a) * p.S(0.196), rr);
+  }
+  g.restore();
 
   /* ---- mission rings around the bumper cluster ------------------ */
   const bcx = p.X(-0.019);
   const bcy = p.Y(0.73);
-  ringSet(p, bcx, bcy, p.S(0.055), p.S(0.19), 7, '#5ad7ff', 0.3, false);
-  ringSet(p, bcx, bcy, p.S(0.2), p.S(0.235), 2, '#ff9a3c', 0.35, true);
+  ringSet(p, bcx, bcy, p.S(0.055), p.S(0.19), 7, '#8fb4d4', 0.26, false);
+  ringSet(p, bcx, bcy, p.S(0.2), p.S(0.235), 2, '#ffab35', 0.38, true);
   g.save();
   g.globalCompositeOperation = 'screen';
   g.fillStyle = radial(g, bcx, bcy, p.S(0.22), [
-    [0, 'rgba(60,150,255,0.30)'],
-    [0.5, 'rgba(40,90,220,0.13)'],
+    [0, 'rgba(96,130,164,0.24)'],
+    [0.5, 'rgba(52,74,102,0.11)'],
     [1, 'rgba(0,0,0,0)'],
   ]);
   g.beginPath();
@@ -384,7 +437,7 @@ export function makePlayfieldArt(res = 2048) {
 
   // radial tick marks
   g.save();
-  g.strokeStyle = 'rgba(150,220,255,0.4)';
+  g.strokeStyle = 'rgba(198,216,232,0.42)';
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
     const r0 = p.S(0.2);
@@ -430,36 +483,36 @@ export function makePlayfieldArt(res = 2048) {
     g.restore();
   };
 
-  // left flank: the fuel-loading apron. Hot amber, the one warm mass on an
-  // otherwise cold board -- it is what stops the table reading as monochrome.
+  // left flank: the fuel-loading apron. Amber-into-rust, the one warm mass on
+  // an otherwise cold steel board -- Space Cadet's only real hot colour.
   const leftField = [
     [-0.298, 0.585], [-0.176, 0.548], [-0.130, 0.430],
     [-0.155, 0.256], [-0.243, 0.171], [-0.298, 0.214],
   ];
   field(leftField, [
-    [0, '#ff9a1f'], [0.32, '#f2650d'], [0.66, '#b3300c'], [1, '#5c1608'],
+    [0, '#e8961f'], [0.32, '#c46414'], [0.66, '#8a3510'], [1, '#3d1a09'],
   ], true);
-  kline(leftField, 0.0075, '#07091a');
-  kline(leftField, 0.0022, 'rgba(255,214,150,0.55)');
+  kline(leftField, 0.0075, '#080c12');
+  kline(leftField, 0.0022, 'rgba(255,214,150,0.45)');
 
-  // right flank: cold counterweight, deep cyan into ultramarine
+  // right flank: cold counterweight — painted steel, not neon cyan
   const rightField = [
     [0.276, 0.600], [0.156, 0.556], [0.112, 0.432],
     [0.140, 0.252], [0.228, 0.166], [0.282, 0.212],
   ];
   field(rightField, [
-    [0, '#2ee6ff'], [0.34, '#0e94d8'], [0.7, '#12358f'], [1, '#050f36'],
+    [0, '#7c9cb8'], [0.34, '#456c8c'], [0.7, '#25405c'], [1, '#111d2c'],
   ], true);
-  kline(rightField, 0.0075, '#07091a');
-  kline(rightField, 0.0022, 'rgba(170,238,255,0.55)');
+  kline(rightField, 0.0075, '#080c12');
+  kline(rightField, 0.0022, 'rgba(196,220,238,0.42)');
 
   // hazard chevrons stamped across the amber apron
   g.save();
   poly(p, leftField);
   g.closePath();
   g.clip();
-  g.globalAlpha = 0.30;
-  g.fillStyle = '#0a0c1c';
+  g.globalAlpha = 0.34;
+  g.fillStyle = '#0b0f16';
   for (let i = -12; i < 22; i++) {
     g.save();
     g.translate(p.X(-0.21), p.Y(0.38));
@@ -469,13 +522,13 @@ export function makePlayfieldArt(res = 2048) {
   }
   g.restore();
 
-  // scan grid stamped across the cyan flank
+  // scan grid stamped across the steel flank
   g.save();
   poly(p, rightField);
   g.closePath();
   g.clip();
-  g.globalAlpha = 0.26;
-  g.strokeStyle = '#03122c';
+  g.globalAlpha = 0.30;
+  g.strokeStyle = '#0b1622';
   g.lineWidth = p.S(0.0022);
   for (let i = 0; i < 26; i++) {
     const yy = p.Y(0.16 + i * 0.019);
@@ -491,17 +544,17 @@ export function makePlayfieldArt(res = 2048) {
   // on the board, so the eye has a highlight to anchor on
   g.save();
   g.lineCap = 'round';
-  for (const [rr, w, col] of [
-    [0.300, 0.0175, 'rgba(238,245,255,0.90)'],
-    [0.300, 0.0068, 'rgba(120,205,255,0.55)'],
+  for (const [rr2, w, col] of [
+    [0.300, 0.0175, 'rgba(226,234,242,0.86)'],
+    [0.300, 0.0068, 'rgba(255,176,58,0.50)'],
   ]) {
     g.strokeStyle = col;
     g.lineWidth = p.S(w);
     g.beginPath();
-    g.arc(p.X(-0.019), p.Y(0.73), p.S(rr), Math.PI * 0.18, Math.PI * 0.82);
+    g.arc(p.X(-0.019), p.Y(0.73), p.S(rr2), Math.PI * 0.18, Math.PI * 0.82);
     g.stroke();
   }
-  g.strokeStyle = '#080b1c';
+  g.strokeStyle = '#080c12';
   g.lineWidth = p.S(0.0026);
   for (const off of [-0.0105, 0.0105]) {
     g.beginPath();
@@ -524,8 +577,8 @@ export function makePlayfieldArt(res = 2048) {
   // the range and (c) an actual illustration rather than a gradient field.
   // Everything below is opaque spot colour so it survives the halftone pass
   // and the clearcoat.
-  const INK = '#05070f';
-  const CREAM = '#f2f6ff';
+  const INK = '#070b11';
+  const CREAM = '#e6ecf2';
 
   // -- (1) hard-edged deck plates: the blacks -------------------------
   const plate = (pts, tint) => {
@@ -536,7 +589,7 @@ export function makePlayfieldArt(res = 2048) {
     g.fill();
     g.restore();
     kline(pts, 0.0060, INK);
-    kline(pts, 0.0016, 'rgba(150,190,255,0.42)');
+    kline(pts, 0.0016, 'rgba(176,200,220,0.38)');
   };
   // top deck strip, above the NOVA rollover lanes
   plate([
@@ -623,9 +676,9 @@ export function makePlayfieldArt(res = 2048) {
   g.save();
   g.lineCap = 'butt';
   for (const [rr, w, col] of [
-    [0.252, 0.0225, 'rgba(5,7,15,0.92)'],
+    [0.252, 0.0225, 'rgba(7,11,17,0.92)'],
     [0.252, 0.0155, CREAM],
-    [0.252, 0.0040, 'rgba(120,190,255,0.70)'],
+    [0.252, 0.0040, 'rgba(255,176,58,0.62)'],
   ]) {
     g.strokeStyle = col;
     g.lineWidth = p.S(w);
@@ -654,7 +707,7 @@ export function makePlayfieldArt(res = 2048) {
   g.letterSpacing = `${p.S(0.008)}px`;
   g.lineWidth = p.S(0.0046);
   g.strokeText('COMMAND · MODEL ND-7', 0, p.S(0.018));
-  g.fillStyle = '#ffcb52';
+  g.fillStyle = '#ffb733';
   g.fillText('COMMAND · MODEL ND-7', 0, p.S(0.018));
   g.letterSpacing = '0px';
   g.restore();
@@ -678,7 +731,7 @@ export function makePlayfieldArt(res = 2048) {
     g.restore();
   }
   const tr = g.createLinearGradient(0, p.Y(0.176), 0, p.Y(0.012));
-  tr.addColorStop(0, 'rgba(255,64,110,0.44)');
+  tr.addColorStop(0, 'rgba(198,52,36,0.46)');
   tr.addColorStop(1, 'rgba(255,150,30,0.10)');
   g.fillStyle = tr;
   g.fillRect(p.X(-0.108), p.Y(0.176), p.S(0.180), p.S(0.166));
@@ -694,8 +747,8 @@ export function makePlayfieldArt(res = 2048) {
   for (const [sx, sy, rot, txt, col] of [
     [-0.2405, 0.240, 0.10, 'OUT LANE', '#ffd166'],
     [0.2075, 0.240, -0.10, 'OUT LANE', '#ffd166'],
-    [-0.170, 0.210, 0.10, 'RETURN', '#9ce8ff'],
-    [0.137, 0.210, -0.10, 'RETURN', '#9ce8ff'],
+    [-0.170, 0.210, 0.10, 'RETURN', '#8fd8a0'],
+    [0.137, 0.210, -0.10, 'RETURN', '#8fd8a0'],
   ]) {
     g.save();
     g.translate(p.X(sx), p.Y(sy));
@@ -713,7 +766,7 @@ export function makePlayfieldArt(res = 2048) {
 
   // -- (7) technical stencil clusters: print density ------------------
   g.save();
-  g.fillStyle = 'rgba(180,210,255,0.40)';
+  g.fillStyle = 'rgba(198,216,232,0.46)';
   g.font = `600 ${Math.round(p.S(0.0090))}px "Helvetica Neue", Arial, sans-serif`;
   g.letterSpacing = `${p.S(0.0018)}px`;
   const stencils = [
@@ -741,11 +794,11 @@ export function makePlayfieldArt(res = 2048) {
   g.translate(p.X(-0.017), p.Y(0.32));
   g.rotate(-0.06);
   const wedge = g.createLinearGradient(-p.S(0.3), 0, p.S(0.3), 0);
-  wedge.addColorStop(0, 'rgba(255,50,150,0)');
-  wedge.addColorStop(0.25, 'rgba(255,40,140,0.55)');
-  wedge.addColorStop(0.5, 'rgba(178,60,255,0.62)');
-  wedge.addColorStop(0.75, 'rgba(60,205,255,0.5)');
-  wedge.addColorStop(1, 'rgba(60,205,255,0)');
+  wedge.addColorStop(0, 'rgba(255,164,44,0)');
+  wedge.addColorStop(0.25, 'rgba(255,164,44,0.50)');
+  wedge.addColorStop(0.5, 'rgba(226,236,244,0.42)');
+  wedge.addColorStop(0.75, 'rgba(96,140,178,0.44)');
+  wedge.addColorStop(1, 'rgba(96,140,178,0)');
   g.fillStyle = wedge;
   g.beginPath();
   g.moveTo(-p.S(0.3), -p.S(0.02));
@@ -761,7 +814,7 @@ export function makePlayfieldArt(res = 2048) {
   g.translate(p.X(-0.017), p.Y(0.155));
   g.globalAlpha = 0.55;
   for (let i = 0; i < 9; i++) {
-    g.strokeStyle = `rgba(120,190,255,${0.5 - i * 0.045})`;
+    g.strokeStyle = `rgba(190,210,226,${0.46 - i * 0.042})`;
     g.lineWidth = p.S(0.0018);
     g.beginPath();
     g.ellipse(0, 0, p.S(0.05 + i * 0.026), p.S(0.018 + i * 0.011), 0, 0, 7);
@@ -782,14 +835,14 @@ export function makePlayfieldArt(res = 2048) {
   for (let i = 0; i < 26; i++) {
     const yy = L.laneBottom + 0.03 + i * 0.028;
     if (yy > L.laneTop - 0.02) break;
-    g.fillStyle = i % 2 ? 'rgba(255,180,40,0.45)' : 'rgba(90,220,255,0.35)';
+    g.fillStyle = i % 2 ? 'rgba(255,172,44,0.48)' : 'rgba(150,178,200,0.34)';
     g.fillRect(lx0 + p.S(0.004), p.Y(yy), lx1 - lx0 - p.S(0.008), p.S(0.004));
   }
   stencilText(p, 'LAUNCH', L.laneIn + 0.017, 0.42, 0.0195, {
     rot: -Math.PI / 2,
-    fill: '#eaf4ff',
+    fill: '#e8eef4',
     letterSpacing: 0.006,
-    glow: 'rgba(120,200,255,0.9)',
+    glow: 'rgba(255,176,58,0.75)',
   });
   g.restore();
 
@@ -812,7 +865,7 @@ export function makePlayfieldArt(res = 2048) {
       [-0.246, 0.118],
       [-0.268, 0.205],
     ],
-    '#0e1a3a',
+    '#111a24',
     0.75
   );
   tintPoly(
@@ -825,33 +878,33 @@ export function makePlayfieldArt(res = 2048) {
       [0.212, 0.118],
       [0.234, 0.205],
     ],
-    '#0e1a3a',
+    '#111a24',
     0.75
   );
 
   /* ---- big vector lettering ------------------------------------- */
   // title along the lower third
   stencilText(p, 'SPACE CADET', -0.017, 0.258, 0.0185, {
-    fill: '#ffffff',
+    fill: '#e9eff5',
     letterSpacing: 0.0075,
-    glow: 'rgba(120,200,255,0.7)',
-    stroke: 'rgba(10,20,50,0.9)',
+    glow: 'rgba(255,176,58,0.55)',
+    stroke: 'rgba(8,12,18,0.92)',
     strokeW: 0.05,
   });
   const nova = g.createLinearGradient(p.X(-0.15), 0, p.X(0.12), 0);
   nova.addColorStop(0, '#ffd25a');
-  nova.addColorStop(0.45, '#ff7a2f');
-  nova.addColorStop(0.75, '#ff3d7a');
-  nova.addColorStop(1, '#a44bff');
+  nova.addColorStop(0.42, '#ffa728');
+  nova.addColorStop(0.74, '#e2601f');
+  nova.addColorStop(1, '#b8371f');
   stencilText(p, 'NOVA', -0.017, 0.206, 0.049, {
     fill: nova,
     letterSpacing: 0.011,
-    glow: 'rgba(255,140,60,0.55)',
-    stroke: 'rgba(255,255,255,0.55)',
+    glow: 'rgba(255,140,60,0.42)',
+    stroke: 'rgba(232,240,248,0.50)',
     strokeW: 0.028,
   });
   stencilText(p, '\u2605  ORBITAL  DEFENCE  COMMAND  \u2605', -0.017, 0.168, 0.0092, {
-    fill: 'rgba(180,215,255,0.72)',
+    fill: 'rgba(198,214,228,0.70)',
     letterSpacing: 0.0032,
     shadow: false,
   });
@@ -859,7 +912,7 @@ export function makePlayfieldArt(res = 2048) {
   // side-rail vertical callouts
   stencilText(p, 'REENTRY', -0.257, 0.335, 0.017, {
     rot: -Math.PI / 2,
-    fill: 'rgba(255,180,90,0.55)',
+    fill: 'rgba(255,172,72,0.50)',
     letterSpacing: 0.006,
     shadow: false,
   });
@@ -895,21 +948,21 @@ export function makePlayfieldArt(res = 2048) {
   };
 
   // ramp entrance arrows + labels
-  addArrowInsert(-0.132, 0.318, 0.036, 0.05, '#ff5a2a', 0.35);
+  addArrowInsert(-0.132, 0.318, 0.036, 0.05, '#e0532a', 0.35);
   stencilText(p, 'REENTRY', -0.132, 0.272, 0.0135, {
-    fill: '#ffbb70',
+    fill: '#ffbe72',
     letterSpacing: 0.0026,
-    glow: 'rgba(255,110,40,0.8)',
+    glow: 'rgba(224,83,42,0.7)',
   });
-  addArrowInsert(0.126, 0.338, 0.036, 0.05, '#39d7ff', -0.22);
+  addArrowInsert(0.126, 0.338, 0.036, 0.05, '#4fbf6e', -0.22);
   stencilText(p, 'FUEL', 0.126, 0.292, 0.0135, {
-    fill: '#9fe8ff',
+    fill: '#a8e6b6',
     letterSpacing: 0.0026,
-    glow: 'rgba(60,200,255,0.8)',
+    glow: 'rgba(79,191,110,0.7)',
   });
 
-  chevrons(p, -0.145, 0.36, 1.9, 5, 0.03, 0.026, 'rgba(255,120,50,0.75)', true);
-  chevrons(p, 0.138, 0.38, 1.28, 5, 0.03, 0.026, 'rgba(70,210,255,0.75)', true);
+  chevrons(p, -0.145, 0.36, 1.9, 5, 0.03, 0.026, 'rgba(255,140,52,0.70)', true);
+  chevrons(p, 0.138, 0.38, 1.28, 5, 0.03, 0.026, 'rgba(120,206,140,0.66)', true);
 
   // saucer surround
   const sx = p.X(L.saucer.x);
@@ -917,25 +970,25 @@ export function makePlayfieldArt(res = 2048) {
   g.save();
   g.globalCompositeOperation = 'screen';
   g.fillStyle = radial(g, sx, sy, p.S(0.075), [
-    [0, 'rgba(180,90,255,0.55)'],
-    [0.4, 'rgba(110,50,220,0.25)'],
+    [0, 'rgba(90,160,200,0.46)'],
+    [0.4, 'rgba(46,96,140,0.22)'],
     [1, 'rgba(0,0,0,0)'],
   ]);
   g.beginPath();
   g.arc(sx, sy, p.S(0.075), 0, 7);
   g.fill();
   g.restore();
-  ringSet(p, sx, sy, p.S(0.026), p.S(0.055), 5, '#d08cff', 0.65, true);
+  ringSet(p, sx, sy, p.S(0.026), p.S(0.055), 5, '#9fc6e2', 0.62, true);
   stencilText(p, 'WORMHOLE', L.saucer.x, L.saucer.y - 0.044, 0.0135, {
-    fill: '#e6c6ff',
+    fill: '#dbe8f2',
     letterSpacing: 0.003,
-    glow: 'rgba(180,90,255,0.9)',
+    glow: 'rgba(110,178,220,0.8)',
   });
 
   // NOVA top-lane letters + inserts
   for (let i = 0; i < 4; i++) {
     const lx = (L.laneGuideX[i] + L.laneGuideX[i + 1]) / 2;
-    addRoundInsert(lx, 0.9, 0.03, 0.03, 0.006, '#ffd23c', null, 0);
+    addRoundInsert(lx, 0.9, 0.03, 0.03, 0.006, '#ffbb2e', null, 0);
     stencilText(p, L.laneLetters[i], lx, 0.9, 0.024, {
       fill: 'rgba(255,255,255,0.9)',
       shadow: false,
@@ -944,15 +997,15 @@ export function makePlayfieldArt(res = 2048) {
 
   // in/outlane rollovers
   for (const r of L.rollovers) {
-    addRoundInsert(r.x, r.y, 0.05, 0.017, 0.0075, r.label === 'SPECIAL' ? '#ff3c6e' : '#4cff9d', r.label, 0.0092, r.x < 0 ? -0.28 : 0.28);
+    addRoundInsert(r.x, r.y, 0.05, 0.017, 0.0075, r.label === 'SPECIAL' ? '#d8402c' : '#4fbf6e', r.label, 0.0092, r.x < 0 ? -0.28 : 0.28);
   }
 
   // drop target bank label
   stencilText(p, 'FUEL  CELLS', -0.176, 0.512, 0.0135, {
-    fill: '#bfe6ff',
+    fill: '#d8e4ee',
     letterSpacing: 0.0034,
     rot: -0.44,
-    glow: 'rgba(60,180,255,0.7)',
+    glow: 'rgba(255,176,58,0.55)',
   });
 
   // standup targets label
@@ -964,22 +1017,22 @@ export function makePlayfieldArt(res = 2048) {
   });
 
   // jackpot / multiball inserts down the centre
-  addRoundInsert(-0.017, 0.44, 0.088, 0.024, 0.008, '#ff2e6a', 'JACKPOT', 0.0135);
-  addRoundInsert(-0.017, 0.404, 0.088, 0.02, 0.007, '#38ff9e', 'MULTIBALL', 0.0112);
-  addRoundInsert(-0.098, 0.212, 0.05, 0.018, 0.007, '#5ad7ff', 'BONUS X', 0.0098);
-  addRoundInsert(0.064, 0.212, 0.05, 0.018, 0.007, '#ffb03c', 'EXTRA BALL', 0.0084);
+  addRoundInsert(-0.017, 0.44, 0.088, 0.024, 0.008, '#d8402c', 'JACKPOT', 0.0135);
+  addRoundInsert(-0.017, 0.404, 0.088, 0.02, 0.007, '#4fbf6e', 'MULTIBALL', 0.0112);
+  addRoundInsert(-0.098, 0.212, 0.05, 0.018, 0.007, '#e9eff5', 'BONUS X', 0.0098);
+  addRoundInsert(0.064, 0.212, 0.05, 0.018, 0.007, '#ffb02a', 'EXTRA BALL', 0.0084);
 
   // spinner label
   stencilText(p, 'SPIN', -0.253, 0.655, 0.0115, {
     rot: -Math.PI / 2,
-    fill: 'rgba(200,230,255,0.75)',
+    fill: 'rgba(206,220,232,0.75)',
     letterSpacing: 0.0024,
     shadow: false,
   });
 
   // captive ball callout
   stencilText(p, 'CORE', -0.186, 0.652, 0.0115, {
-    fill: 'rgba(255,200,140,0.8)',
+    fill: 'rgba(255,196,130,0.8)',
     letterSpacing: 0.0024,
     shadow: false,
   });
@@ -991,7 +1044,7 @@ export function makePlayfieldArt(res = 2048) {
   /* ================================================================ */
 
   // --- helpers -----------------------------------------------------
-  const keyline = (w = 0.0028, col = 'rgba(6,8,16,0.92)') => {
+  const keyline = (w = 0.0028, col = 'rgba(7,11,17,0.92)') => {
     g.strokeStyle = col;
     g.lineWidth = p.S(w);
     g.lineJoin = 'miter';
@@ -1030,7 +1083,7 @@ export function makePlayfieldArt(res = 2048) {
         const t = (xx - xa) / Math.max(1, xb - xa);
         const r = d * 0.95 * Math.max(0, Math.min(1, t * 1.35 - 0.18));
         if (r < 0.35) continue;
-        g.fillStyle = 'rgba(6,9,18,0.55)';
+        g.fillStyle = 'rgba(7,11,17,0.55)';
         g.beginPath();
         g.arc(xx, yy, r, 0, 7);
         g.fill();
@@ -1058,7 +1111,7 @@ export function makePlayfieldArt(res = 2048) {
       g.closePath();
       g.fillStyle = col.replace('ALPHA', (0.92 * a).toFixed(2));
       g.fill();
-      g.strokeStyle = 'rgba(6,8,16,0.9)';
+      g.strokeStyle = 'rgba(7,11,17,0.9)';
       g.lineWidth = p.S(0.0018);
       g.stroke();
     }
@@ -1069,7 +1122,7 @@ export function makePlayfieldArt(res = 2048) {
   g.save();
   g.beginPath();
   g.rect(p.X(-0.292), p.Y(1.104), p.S(0.584), p.Y(0.02) - p.Y(1.104));
-  g.strokeStyle = 'rgba(4,6,12,0.85)';
+  g.strokeStyle = 'rgba(6,9,14,0.85)';
   g.lineWidth = p.S(0.0055);
   g.stroke();
   g.restore();
@@ -1078,15 +1131,15 @@ export function makePlayfieldArt(res = 2048) {
   // big warm trapezoid deck with a black keyline and cross-hatched deck plate
   printBlock(
     [[-0.212, 0.288], [0.178, 0.288], [0.226, 0.086], [-0.260, 0.086]],
-    'rgba(30,46,132,0.93)',
-    'rgba(86,24,140,0.92)',
+    'rgba(46,64,84,0.94)',
+    'rgba(22,32,45,0.94)',
     0.25
   );
   // deck plate hatching
   g.save();
   shapePoly([[-0.212, 0.288], [0.178, 0.288], [0.226, 0.086], [-0.260, 0.086]]);
   g.clip();
-  g.strokeStyle = 'rgba(8,12,24,0.30)';
+  g.strokeStyle = 'rgba(8,12,18,0.34)';
   g.lineWidth = p.S(0.0016);
   for (let i = -30; i < 40; i++) {
     g.beginPath();
@@ -1103,10 +1156,10 @@ export function makePlayfieldArt(res = 2048) {
     const fx = p.X(-0.017);
     const fy = p.Y(0.264);
     const fl = g.createLinearGradient(fx, fy, fx, p.Y(0.096));
-    fl.addColorStop(0, 'rgba(255,236,170,0.72)');
-    fl.addColorStop(0.28, 'rgba(255,170,52,0.58)');
-    fl.addColorStop(0.62, 'rgba(255,74,52,0.36)');
-    fl.addColorStop(1, 'rgba(190,26,130,0.0)');
+    fl.addColorStop(0, 'rgba(255,236,170,0.70)');
+    fl.addColorStop(0.28, 'rgba(255,170,52,0.56)');
+    fl.addColorStop(0.62, 'rgba(206,62,36,0.34)');
+    fl.addColorStop(1, 'rgba(90,26,18,0.0)');
     g.fillStyle = fl;
     g.beginPath();
     g.moveTo(p.X(-0.030), fy);
@@ -1125,7 +1178,7 @@ export function makePlayfieldArt(res = 2048) {
     g.scale(1, 0.44);
     g.beginPath();
     g.arc(0, 0, p.S(0.052 + i * 0.038), 0, 7);
-    g.strokeStyle = i % 2 ? 'rgba(8,10,20,0.8)' : 'rgba(150,242,255,0.85)';
+    g.strokeStyle = i % 2 ? 'rgba(8,12,18,0.8)' : 'rgba(255,186,72,0.85)';
     g.lineWidth = p.S(0.0038 - i * 0.0005);
     g.stroke();
     g.restore();
@@ -1133,7 +1186,7 @@ export function makePlayfieldArt(res = 2048) {
   // registration marks at the pad corners
   for (const [mx, my] of [[-0.196, 0.262], [0.162, 0.262], [-0.238, 0.108], [0.204, 0.108]]) {
     g.save();
-    g.strokeStyle = 'rgba(10,14,26,0.8)';
+    g.strokeStyle = 'rgba(9,13,19,0.8)';
     g.lineWidth = p.S(0.0022);
     g.beginPath();
     g.moveTo(p.X(mx - 0.012), p.Y(my));
@@ -1150,37 +1203,37 @@ export function makePlayfieldArt(res = 2048) {
   // --- 3. in/outlane guide blocking + chevrons ---------------------
   printBlock(
     [[-0.268, 0.276], [-0.196, 0.244], [-0.170, 0.108], [-0.246, 0.086]],
-    'rgba(24,52,132,0.86)',
-    'rgba(10,20,58,0.86)',
+    'rgba(52,72,94,0.88)',
+    'rgba(18,27,38,0.88)',
     1.2
   );
   printBlock(
     [[0.234, 0.276], [0.162, 0.244], [0.136, 0.108], [0.212, 0.086]],
-    'rgba(24,52,132,0.86)',
-    'rgba(10,20,58,0.86)',
+    'rgba(52,72,94,0.88)',
+    'rgba(18,27,38,0.88)',
     1.9
   );
-  chevStack(-0.238, 0.212, 0.036, 3, 'rgba(90,224,255,ALPHA)', 1, -0.24);
-  chevStack(-0.152, 0.222, 0.034, 3, 'rgba(120,255,180,ALPHA)', 1, -0.24);
-  chevStack(0.204, 0.212, 0.036, 3, 'rgba(90,224,255,ALPHA)', 1, 0.24);
-  chevStack(0.118, 0.222, 0.034, 3, 'rgba(120,255,180,ALPHA)', 1, 0.24);
+  chevStack(-0.238, 0.212, 0.036, 3, 'rgba(255,178,58,ALPHA)', 1, -0.24);
+  chevStack(-0.152, 0.222, 0.034, 3, 'rgba(110,198,132,ALPHA)', 1, -0.24);
+  chevStack(0.204, 0.212, 0.036, 3, 'rgba(255,178,58,ALPHA)', 1, 0.24);
+  chevStack(0.118, 0.222, 0.034, 3, 'rgba(110,198,132,ALPHA)', 1, 0.24);
 
   // --- 4. mid-field mission panels --------------------------------
   printBlock(
     [[-0.276, 0.612], [-0.196, 0.628], [-0.182, 0.452], [-0.268, 0.436]],
-    'rgba(228,36,96,0.72)',
-    'rgba(96,14,74,0.72)',
+    'rgba(196,58,38,0.74)',
+    'rgba(74,20,12,0.74)',
     1.55
   );
   printBlock(
     [[0.244, 0.612], [0.164, 0.628], [0.150, 0.452], [0.236, 0.436]],
-    'rgba(24,168,236,0.72)',
-    'rgba(10,54,120,0.72)',
+    'rgba(78,116,148,0.74)',
+    'rgba(20,34,50,0.74)',
     1.55
   );
   stencilText(p, 'FUEL', -0.228, 0.560, 0.0148, {
     rot: -Math.PI / 2,
-    fill: '#fff2f6',
+    fill: '#f4eae6',
     letterSpacing: 0.003,
     stroke: 'rgba(8,10,20,0.9)',
     strokeW: 0.05,
@@ -1188,7 +1241,7 @@ export function makePlayfieldArt(res = 2048) {
   });
   stencilText(p, 'CORE', 0.196, 0.560, 0.0148, {
     rot: Math.PI / 2,
-    fill: '#eaf8ff',
+    fill: '#e6eef4',
     letterSpacing: 0.003,
     stroke: 'rgba(8,10,20,0.9)',
     strokeW: 0.05,
@@ -1206,7 +1259,7 @@ export function makePlayfieldArt(res = 2048) {
     g.moveTo(0, 0);
     g.arc(0, 0, p.S(0.262), a0, a1);
     g.closePath();
-    g.fillStyle = i % 2 ? 'rgba(96,64,220,0.85)' : 'rgba(24,150,235,0.42)';
+    g.fillStyle = i % 2 ? 'rgba(38,54,74,0.85)' : 'rgba(66,92,118,0.44)';
     g.fill();
   }
   g.restore();
@@ -1214,12 +1267,12 @@ export function makePlayfieldArt(res = 2048) {
   // --- 6. upper mission dial with hard ticks ----------------------
   g.save();
   g.translate(p.X(-0.019), p.Y(0.78));
-  g.strokeStyle = 'rgba(6,9,18,0.85)';
+  g.strokeStyle = 'rgba(7,11,17,0.85)';
   g.lineWidth = p.S(0.0034);
   g.beginPath();
   g.arc(0, 0, p.S(0.212), 0, 7);
   g.stroke();
-  g.strokeStyle = 'rgba(255,246,214,0.9)';
+  g.strokeStyle = 'rgba(240,232,214,0.9)';
   g.lineWidth = p.S(0.0022);
   g.beginPath();
   g.arc(0, 0, p.S(0.198), 0, 7);
@@ -1227,7 +1280,7 @@ export function makePlayfieldArt(res = 2048) {
   for (let i = 0; i < 36; i++) {
     const a = (i / 36) * Math.PI * 2;
     const big = i % 3 === 0;
-    g.strokeStyle = big ? 'rgba(255,246,214,0.95)' : 'rgba(150,200,255,0.6)';
+    g.strokeStyle = big ? 'rgba(255,196,92,0.95)' : 'rgba(176,196,214,0.55)';
     g.lineWidth = p.S(big ? 0.0032 : 0.0014);
     g.beginPath();
     g.moveTo(Math.cos(a) * p.S(0.198), Math.sin(a) * p.S(0.198));
@@ -1242,23 +1295,23 @@ export function makePlayfieldArt(res = 2048) {
       rot,
       fill: col,
       letterSpacing: 0.004,
-      stroke: 'rgba(6,9,18,0.92)',
+      stroke: 'rgba(7,11,17,0.92)',
       strokeW: 0.07,
       shadow: false,
     });
   };
-  bigNum('01', -0.257, 0.470, 0.026, 'rgba(255,206,110,0.85)', -Math.PI / 2);
-  bigNum('02', 0.214, 0.470, 0.026, 'rgba(140,226,255,0.85)', Math.PI / 2);
-  bigNum('03', -0.252, 0.872, 0.026, 'rgba(255,140,180,0.8)', -Math.PI / 2);
-  bigNum('04', 0.222, 0.872, 0.026, 'rgba(190,160,255,0.8)', Math.PI / 2);
+  bigNum('01', -0.257, 0.470, 0.026, 'rgba(255,196,92,0.85)', -Math.PI / 2);
+  bigNum('02', 0.214, 0.470, 0.026, 'rgba(206,222,236,0.85)', Math.PI / 2);
+  bigNum('03', -0.252, 0.872, 0.026, 'rgba(214,90,62,0.82)', -Math.PI / 2);
+  bigNum('04', 0.222, 0.872, 0.026, 'rgba(122,196,142,0.80)', Math.PI / 2);
 
   // --- 8. top-lane divider stripes --------------------------------
   for (let i = 0; i < 4; i++) {
     const cx = (L.laneGuideX[i] + L.laneGuideX[i + 1]) / 2;
     printBlock(
       [[cx - 0.020, 0.968], [cx + 0.020, 0.968], [cx + 0.020, 0.926], [cx - 0.020, 0.926]],
-      i % 2 ? 'rgba(255,178,44,0.55)' : 'rgba(90,206,255,0.55)',
-      'rgba(8,14,34,0.55)',
+      i % 2 ? 'rgba(255,178,44,0.58)' : 'rgba(180,200,216,0.50)',
+      'rgba(10,15,22,0.58)',
       1.57
     );
   }
@@ -1266,21 +1319,21 @@ export function makePlayfieldArt(res = 2048) {
   // --- 9. slingshot flash panels ----------------------------------
   printBlock(
     [[-0.196, 0.300], [-0.128, 0.256], [-0.150, 0.196], [-0.208, 0.236]],
-    'rgba(255,214,60,0.68)',
-    'rgba(220,72,32,0.68)',
+    'rgba(255,196,52,0.70)',
+    'rgba(190,66,28,0.70)',
     0.7
   );
   printBlock(
     [[0.162, 0.300], [0.094, 0.256], [0.116, 0.196], [0.174, 0.236]],
-    'rgba(255,214,60,0.68)',
-    'rgba(220,72,32,0.68)',
+    'rgba(255,196,52,0.70)',
+    'rgba(190,66,28,0.70)',
     2.4
   );
 
   /* ---- fine print / grid technical detail ------------------------ */
   g.save();
   g.globalAlpha = 0.16;
-  g.strokeStyle = '#8fc9ff';
+  g.strokeStyle = '#9fb6c8';
   g.lineWidth = p.S(0.0007);
   for (let x = -0.28; x < 0.29; x += 0.028) {
     g.beginPath();
@@ -1319,7 +1372,7 @@ export function makePlayfieldArt(res = 2048) {
     const y0 = 0.05 + rnd() * 0.95;
     const a = rnd() * Math.PI * 2;
     const len = 0.02 + rnd() * 0.13;
-    g.strokeStyle = `rgba(220,230,255,${0.1 + rnd() * 0.25})`;
+    g.strokeStyle = `rgba(226,234,242,${0.1 + rnd() * 0.25})`;
     g.lineWidth = p.S(0.0006 + rnd() * 0.0016);
     g.beginPath();
     g.moveTo(p.X(x0), p.Y(y0));
@@ -1416,26 +1469,27 @@ export function makePlayfieldGI(art) {
 
   g.globalCompositeOperation = 'lighter';
   const pools = [
-    // x, y, radius, colour, peak.  Weighted toward the lower half of the
-    // board: in the 3/4 hero framing the top third is masked by ramps and
-    // the bumper cluster, so that is where the print has to carry.
-    [-0.205, 0.300, 0.200, [255, 74, 158], 1.35],
-    [0.180, 0.300, 0.195, [56, 208, 255], 1.30],
-    [-0.019, 0.170, 0.215, [255, 158, 62], 1.10],
-    [-0.235, 0.560, 0.185, [255, 132, 40], 1.15],
-    [0.215, 0.560, 0.180, [72, 152, 255], 1.08],
-    [-0.019, 0.400, 0.250, [176, 110, 255], 0.90],
-    [-0.019, 0.075, 0.180, [96, 226, 226], 0.86],
+    // x, y, radius, colour, peak. Space Cadet's GI is warm incandescent —
+    // amber and cream bulbs under the plastics with a few red and green
+    // feature lamps. No cyan, no magenta: those are the arcade signature we
+    // are deliberately not using.
+    [-0.205, 0.300, 0.200, [255, 152, 56], 1.15],
+    [0.180, 0.300, 0.195, [255, 176, 96], 1.10],
+    [-0.019, 0.170, 0.215, [255, 168, 78], 0.98],
+    [-0.235, 0.560, 0.185, [255, 138, 46], 1.00],
+    [0.215, 0.560, 0.180, [186, 208, 226], 0.86],
+    [-0.019, 0.400, 0.250, [214, 92, 52], 0.72],
+    [-0.019, 0.075, 0.180, [255, 196, 128], 0.72],
     // slingshot / inlane lamps: the flipper zone is the closest thing to the
     // lens in the hero framing and it cannot be a dead grey shelf
-    [-0.196, 0.205, 0.115, [255, 120, 70], 1.05],
-    [0.162, 0.205, 0.115, [90, 190, 255], 1.00],
-    [-0.105, 0.120, 0.098, [255, 210, 130], 0.72],
-    [0.071, 0.120, 0.098, [255, 210, 130], 0.72],
-    [0.253, 0.420, 0.130, [255, 196, 110], 0.80],
-    [-0.019, 0.735, 0.250, [150, 130, 255], 0.60],
-    [-0.019, 0.960, 0.220, [96, 220, 220], 0.46],
-    [-0.019, 1.070, 0.200, [190, 120, 255], 0.36],
+    [-0.196, 0.205, 0.115, [255, 150, 66], 0.95],
+    [0.162, 0.205, 0.115, [255, 150, 66], 0.92],
+    [-0.105, 0.120, 0.098, [255, 214, 150], 0.66],
+    [0.071, 0.120, 0.098, [255, 214, 150], 0.66],
+    [0.253, 0.420, 0.130, [255, 196, 110], 0.72],
+    [-0.019, 0.735, 0.250, [176, 200, 220], 0.52],
+    [-0.019, 0.960, 0.220, [150, 180, 206], 0.40],
+    [-0.019, 1.070, 0.200, [120, 152, 182], 0.30],
   ];
   for (const [x, y, r, [cr, cg, cb], a] of pools) {
     const px = p.X(x);
@@ -1451,7 +1505,7 @@ export function makePlayfieldGI(art) {
     g.fill();
   }
   // a low even floor so no corner of the print goes fully dead
-  g.fillStyle = 'rgba(88,106,180,0.10)';
+  g.fillStyle = 'rgba(126,142,164,0.09)';
   g.fillRect(0, 0, W, H);
 
   // modulate by the print so the glow carries the artwork's own colour and
@@ -1653,15 +1707,15 @@ export function makeSideArt(w = 1024) {
   const g = c.getContext('2d');
   const rnd = makeRng(0x51de);
   const bg = g.createLinearGradient(0, 0, w, h);
-  bg.addColorStop(0, '#12061f');
-  bg.addColorStop(0.4, '#2a0b3d');
-  bg.addColorStop(0.7, '#4a1030');
-  bg.addColorStop(1, '#0d0518');
+  bg.addColorStop(0, '#0a1018');
+  bg.addColorStop(0.4, '#131f2c');
+  bg.addColorStop(0.7, '#1b2c3c');
+  bg.addColorStop(1, '#070c13');
   g.fillStyle = bg;
   g.fillRect(0, 0, w, h);
   const p = new Painter(g, w, h);
-  nebula(p, rnd, w * 0.5, h * 0.5, w * 0.5, 300, 0.5);
-  starfield(p, rnd, 500, 1.6, 0.85);
+  nebula(p, rnd, w * 0.5, h * 0.5, w * 0.5, 208, 0.30);
+  starfield(p, rnd, 460, 1.6, 0.80);
 
   // streaking comet
   g.save();
@@ -1687,20 +1741,20 @@ export function makeSideArt(w = 1024) {
   g.textBaseline = 'middle';
   g.letterSpacing = `${h * 0.02}px`;
   const tg = g.createLinearGradient(-w * 0.3, 0, w * 0.3, 0);
-  tg.addColorStop(0, '#ffe27a');
-  tg.addColorStop(0.5, '#ff7a2f');
-  tg.addColorStop(1, '#ff3d7a');
-  g.shadowColor = 'rgba(255,120,40,0.9)';
+  tg.addColorStop(0, '#ffdc78');
+  tg.addColorStop(0.5, '#ffa326');
+  tg.addColorStop(1, '#d2481d');
+  g.shadowColor = 'rgba(255,140,50,0.75)';
   g.shadowBlur = h * 0.14;
   g.fillStyle = tg;
   g.fillText('NOVA', 0, 0);
   g.shadowBlur = 0;
   g.lineWidth = h * 0.009;
-  g.strokeStyle = 'rgba(255,255,255,0.7)';
+  g.strokeStyle = 'rgba(226,236,244,0.65)';
   g.strokeText('NOVA', 0, 0);
   g.font = `700 ${h * 0.082}px "Helvetica Neue", Arial, sans-serif`;
   g.letterSpacing = `${h * 0.028}px`;
-  g.fillStyle = 'rgba(220,235,255,0.9)';
+  g.fillStyle = 'rgba(206,222,236,0.9)';
   g.shadowBlur = 0;
   g.fillText('SPACE CADET', 0, h * 0.24, w * 0.62);
   g.restore();
@@ -1714,14 +1768,14 @@ export function makeBackglass(w = 1024) {
   const p = new Painter(g, w, h);
   const rnd = makeRng(0xba0);
   const bg = g.createLinearGradient(0, 0, 0, h);
-  bg.addColorStop(0, '#05060f');
-  bg.addColorStop(0.45, '#0d1440');
-  bg.addColorStop(1, '#160726');
+  bg.addColorStop(0, '#03050a');
+  bg.addColorStop(0.45, '#08121f');
+  bg.addColorStop(1, '#0b1520');
   g.fillStyle = bg;
   g.fillRect(0, 0, w, h);
-  nebula(p, rnd, w * 0.5, h * 0.42, w * 0.62, 250, 0.55);
-  nebula(p, rnd, w * 0.2, h * 0.7, w * 0.4, 320, 0.4);
-  starfield(p, rnd, 900, 2.0, 1);
+  nebula(p, rnd, w * 0.5, h * 0.42, w * 0.62, 206, 0.34);
+  nebula(p, rnd, w * 0.2, h * 0.7, w * 0.4, 24, 0.16);
+  starfield(p, rnd, 1100, 2.0, 1);
   planet(p, rnd, w * 0.78, h * 0.72, w * 0.17, 30, true);
 
   // hero ship silhouette
@@ -1749,14 +1803,14 @@ export function makeBackglass(w = 1024) {
   g.lineTo(40, 34);
   g.closePath();
   g.fill();
-  g.strokeStyle = 'rgba(120,200,255,0.8)';
+  g.strokeStyle = 'rgba(176,202,224,0.85)';
   g.lineWidth = 3;
   g.stroke();
   // engine glow
   g.globalCompositeOperation = 'screen';
   g.fillStyle = radial(g, -170, 0, 120, [
-    [0, 'rgba(120,220,255,0.95)'],
-    [0.3, 'rgba(60,140,255,0.5)'],
+    [0, 'rgba(255,228,170,0.95)'],
+    [0.3, 'rgba(255,150,50,0.5)'],
     [1, 'rgba(0,0,0,0)'],
   ]);
   g.beginPath();
@@ -1773,20 +1827,20 @@ export function makeBackglass(w = 1024) {
   g.letterSpacing = `${h * 0.035}px`;
   const tg = g.createLinearGradient(-w * 0.35, 0, w * 0.35, 0);
   tg.addColorStop(0, '#ffe27a');
-  tg.addColorStop(0.4, '#ff9a2f');
-  tg.addColorStop(0.75, '#ff3d7a');
-  tg.addColorStop(1, '#b04bff');
-  g.shadowColor = 'rgba(255,140,50,0.9)';
+  tg.addColorStop(0.4, '#ffa728');
+  tg.addColorStop(0.75, '#e2601f');
+  tg.addColorStop(1, '#b8371f');
+  g.shadowColor = 'rgba(255,140,50,0.75)';
   g.shadowBlur = h * 0.09;
   g.fillStyle = tg;
   g.fillText('NOVA', 0, 0);
   g.shadowBlur = 0;
   g.lineWidth = h * 0.008;
-  g.strokeStyle = 'rgba(255,255,255,0.85)';
+  g.strokeStyle = 'rgba(226,236,244,0.85)';
   g.strokeText('NOVA', 0, 0);
   g.font = `800 ${h * 0.052}px "Helvetica Neue", Arial, sans-serif`;
   g.letterSpacing = `${h * 0.022}px`;
-  g.fillStyle = '#bcd8ff';
+  g.fillStyle = '#cfdeea';
   g.fillText('S P A C E   C A D E T', 0, h * 0.135, w * 0.62);
   g.restore();
 
@@ -1797,7 +1851,7 @@ export function makeBackglass(w = 1024) {
   g.font = `700 ${h * 0.042}px "Helvetica Neue", Arial, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillStyle = 'rgba(150,200,255,0.8)';
+  g.fillStyle = 'rgba(186,206,224,0.8)';
   g.letterSpacing = `${h * 0.018}px`;
   g.fillText('ORBITAL DEFENCE COMMAND \u2022 MODEL ND-7', w * 0.5, h * 0.8375, w * 0.86);
   return c;
@@ -1865,12 +1919,12 @@ export function makeApronArt(w = 1024) {
     'RAMPS LIGHT JACKPOT',
     'ORBIT x3 = WORMHOLE',
     'DROPS AWARD BONUS',
-  ], '#ffc248');
+  ], '#e8a02c');
   card(w * 0.84, h * 0.52, w * 0.215, h * 0.56, 'FLIGHT RULES', [
     'TILT ENDS BALL',
     '3 BALLS PER GAME',
     'MATCH AWARDS CREDIT',
-  ], '#3ad0ff');
+  ], '#5c8aa8');
 
   // centre badge
   g.textAlign = 'center';
@@ -1884,7 +1938,7 @@ export function makeApronArt(w = 1024) {
   g.shadowBlur = 0;
   g.font = `700 ${h * 0.10}px "Helvetica Neue", Arial, sans-serif`;
   g.letterSpacing = `${h * 0.035}px`;
-  g.fillStyle = '#8fb6e6';
+  g.fillStyle = '#9fb4c6';
   g.fillText('ORBITAL DEFENCE COMMAND', w * 0.5, h * 0.68, w * 0.32);
 
   g.fillStyle = 'rgba(6,9,16,0.30)';
@@ -1983,7 +2037,9 @@ function shade(hex, f) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Arcade carpet — the classic 90s neon-confetti weave. Tiles cleanly. */
+/* Hangar deck floor — dark riveted steel plate. Tiles cleanly. The old
+/* neon-confetti arcade carpet was exactly the nightclub signature this
+/* re-theme is removing. */
 
 export function makeArcadeCarpet(size = 1024, rng = Math.random) {
   const c = document.createElement('canvas');
@@ -1991,86 +2047,87 @@ export function makeArcadeCarpet(size = 1024, rng = Math.random) {
   const x = c.getContext('2d');
   const S = size;
 
-  // deep navy ground with a woven weft
-  x.fillStyle = '#080b18';
+  // gunmetal ground
+  x.fillStyle = '#131920';
   x.fillRect(0, 0, S, S);
-  const weave = x.createLinearGradient(0, 0, 0, S);
-  weave.addColorStop(0, 'rgba(255,255,255,0.02)');
-  weave.addColorStop(1, 'rgba(0,0,0,0.05)');
-  x.fillStyle = weave;
+  const sheen = x.createLinearGradient(0, 0, S, S);
+  sheen.addColorStop(0, 'rgba(150,175,200,0.05)');
+  sheen.addColorStop(0.5, 'rgba(0,0,0,0.06)');
+  sheen.addColorStop(1, 'rgba(150,175,200,0.04)');
+  x.fillStyle = sheen;
   x.fillRect(0, 0, S, S);
 
-  // large soft nebula blooms so the ground is never flat
-  for (let i = 0; i < 5; i++) {
-    const gx = rng() * S;
-    const gy = rng() * S;
-    const gr = S * (0.18 + rng() * 0.2);
-    const g = x.createRadialGradient(gx, gy, 0, gx, gy, gr);
-    const hue = [212, 268, 190, 300, 236][i];
-    g.addColorStop(0, `hsla(${hue},70%,32%,0.32)`);
-    g.addColorStop(1, `hsla(${hue},70%,20%,0)`);
-    x.fillStyle = g;
-    x.fillRect(0, 0, S, S);
-  }
-
-  // neon zigzag ribbons, drawn wrapped so the tile seams line up
-  const ribbon = (y0, amp, period, w, col, a) => {
-    x.save();
-    x.globalAlpha = a;
-    x.strokeStyle = col;
-    x.lineWidth = w;
-    x.lineJoin = 'round';
-    x.lineCap = 'round';
-    for (const dy of [-S, 0, S]) {
-      x.beginPath();
-      for (let i = 0; i <= period * 2; i++) {
-        const px = (i / (period * 2)) * S;
-        const py = y0 + dy + (i % 2 === 0 ? -amp : amp);
-        i === 0 ? x.moveTo(px, py) : x.lineTo(px, py);
-      }
-      x.stroke();
+  // 2x2 plates with recessed seams
+  const N = 2;
+  const P = S / N;
+  for (let iy = 0; iy < N; iy++) {
+    for (let ix = 0; ix < N; ix++) {
+      const px = ix * P;
+      const py = iy * P;
+      const t = (rng() - 0.5) * 10;
+      x.fillStyle = `rgba(${(34 + t) | 0},${(43 + t) | 0},${(54 + t) | 0},0.9)`;
+      x.fillRect(px + 3, py + 3, P - 6, P - 6);
+      x.fillStyle = 'rgba(4,7,11,0.85)';
+      x.fillRect(px, py, P, 4);
+      x.fillRect(px, py, 4, P);
+      x.fillStyle = 'rgba(150,178,206,0.10)';
+      x.fillRect(px + 4, py + 4, P - 8, 2);
     }
-    x.restore();
-  };
-  const cols = ['#ff2d78', '#22e6ff', '#ffd12e', '#8b5cff', '#2dff9e'];
-  for (let i = 0; i < 9; i++) {
-    ribbon(
-      (i / 9) * S + rng() * 20,
-      S * (0.02 + rng() * 0.03),
-      3 + ((i * 2) % 4),
-      S * (0.004 + rng() * 0.005),
-      cols[i % cols.length],
-      0.26
-    );
   }
 
-  // confetti speckle
-  for (let i = 0; i < 1500; i++) {
-    const px = rng() * S;
-    const py = rng() * S;
-    const r = S * (0.0010 + rng() * 0.0026);
-    x.globalAlpha = 0.08 + rng() * 0.22;
-    x.fillStyle = cols[(rng() * cols.length) | 0];
-    x.beginPath();
-    if (rng() < 0.5) x.arc(px, py, r, 0, 7);
-    else x.rect(px - r, py - r * 0.6, r * 2.4, r * 1.2);
-    x.fill();
+  // rivets along the seams
+  const rivet = (rx, ry, r) => {
+    x.fillStyle = 'rgba(4,7,11,0.7)';
+    x.beginPath(); x.arc(rx, ry + r * 0.5, r, 0, 7); x.fill();
+    x.fillStyle = 'rgba(120,146,172,0.35)';
+    x.beginPath(); x.arc(rx, ry, r * 0.85, 0, 7); x.fill();
+  };
+  const rr = S * 0.006;
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < 16; k++) {
+      const f = (k + 0.5) / 16;
+      rivet(i * P + 12, f * S, rr);
+      rivet(f * S, i * P + 12, rr);
+    }
+  }
+
+  // anti-slip tread dimples across each plate
+  x.globalAlpha = 0.16;
+  for (let iy = 0; iy < 46; iy++) {
+    for (let ix = 0; ix < 46; ix++) {
+      const px = (ix + 0.5) * (S / 46) + (iy % 2 ? S / 92 : 0);
+      const py = (iy + 0.5) * (S / 46);
+      x.fillStyle = '#9fb6c8';
+      x.beginPath();
+      x.arc(px, py, S * 0.0035, 0, 7);
+      x.fill();
+    }
   }
   x.globalAlpha = 1;
 
-  // grime + pile shading
-  for (let i = 0; i < 320; i++) {
+  // wear, oil stains and grime
+  for (let i = 0; i < 300; i++) {
     const px = rng() * S;
     const py = rng() * S;
-    const r = S * (0.01 + rng() * 0.05);
+    const r = S * (0.01 + rng() * 0.06);
     const g = x.createRadialGradient(px, py, 0, px, py, r);
-    g.addColorStop(0, `rgba(0,0,0,${0.05 + rng() * 0.1})`);
+    g.addColorStop(0, `rgba(0,0,0,${0.06 + rng() * 0.14})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g;
     x.fillRect(px - r, py - r, r * 2, r * 2);
   }
-  // darken overall so the machine stays the brightest thing in frame
-  x.fillStyle = 'rgba(4,6,14,0.44)';
+  // faint yellow hazard stripe stencil, the one accent
+  x.save();
+  x.globalAlpha = 0.10;
+  x.translate(S * 0.5, S * 0.5);
+  x.rotate(-0.6);
+  for (let i = -8; i < 8; i++) {
+    x.fillStyle = i % 2 ? '#ffb02a' : '#0a0e14';
+    x.fillRect(-S, i * S * 0.05, S * 2, S * 0.05);
+  }
+  x.restore();
+
+  x.fillStyle = 'rgba(4,7,12,0.42)';
   x.fillRect(0, 0, S, S);
   return c;
 }
@@ -2095,12 +2152,12 @@ export function makeBallProbe(w = 512) {
   // very bright bars. A soft mid-grey probe makes the ball look like a
   // ping-pong ball, which is the classic amateur pinball tell.
   const base = g.createLinearGradient(0, 0, 0, h);
-  base.addColorStop(0.0, '#151a2a');
-  base.addColorStop(0.30, '#2a3350');
-  base.addColorStop(0.50, '#171c33');
-  base.addColorStop(0.62, '#303a5c');
-  base.addColorStop(0.80, '#3d4870');
-  base.addColorStop(1.0, '#1d1638');
+  base.addColorStop(0.0, '#121821');
+  base.addColorStop(0.30, '#26313e');
+  base.addColorStop(0.50, '#151b24');
+  base.addColorStop(0.62, '#2c3846');
+  base.addColorStop(0.80, '#3a4756');
+  base.addColorStop(1.0, '#161c25');
   g.fillStyle = base;
   g.fillRect(0, 0, w, h);
 
@@ -2142,10 +2199,10 @@ export function makeBallProbe(w = 512) {
   // neon wall strips — coloured accents. Kept modest: the ball must read
   // as steel first and pick up colour second.
   const strips = [
-    [0.40, 'rgba(150,120,235,0.72)'],
-    [0.445, 'rgba(110,220,245,0.7)'],
-    [0.355, 'rgba(235,100,150,0.55)'],
-    [0.615, 'rgba(120,180,235,0.42)'],
+    [0.40, 'rgba(255,186,110,0.66)'],
+    [0.445, 'rgba(196,214,232,0.62)'],
+    [0.355, 'rgba(214,110,70,0.48)'],
+    [0.615, 'rgba(150,178,204,0.40)'],
   ];
   for (const [fy, col] of strips) {
     const y = h * fy;
@@ -2168,8 +2225,8 @@ export function makeBallProbe(w = 512) {
     g.fillRect(cx - r, cy - r, r * 2, r * 2);
   };
   blob(w * 0.5, h * 0.33, w * 0.16, 'rgba(255,226,190,%A%)', '0.7');
-  blob(w * 0.14, h * 0.40, w * 0.10, 'rgba(170,210,255,%A%)', '0.42');
-  blob(w * 0.84, h * 0.41, w * 0.10, 'rgba(255,150,200,%A%)', '0.32');
+  blob(w * 0.14, h * 0.40, w * 0.10, 'rgba(186,208,230,%A%)', '0.42');
+  blob(w * 0.84, h * 0.41, w * 0.10, 'rgba(255,178,110,%A%)', '0.32');
 
   // ---- lower hemisphere: the playfield the ball is sitting on ----------
   // A chrome ball over a lit playfield picks up the printed art and the
@@ -2179,11 +2236,11 @@ export function makeBallProbe(w = 512) {
   // as a dim, dark, mostly-neutral field. Push the chroma up here and the
   // ball turns into an iridescent soap bubble instead of polished steel.
   const pf = g.createLinearGradient(0, h * 0.52, 0, h);
-  pf.addColorStop(0.0, 'rgba(58,50,74,0)');
-  pf.addColorStop(0.22, 'rgba(66,58,84,0.74)');
-  pf.addColorStop(0.52, 'rgba(78,68,98,0.88)');
-  pf.addColorStop(0.78, 'rgba(32,27,42,0.94)');
-  pf.addColorStop(1.0, 'rgba(7,6,11,0.98)');
+  pf.addColorStop(0.0, 'rgba(52,58,70,0)');
+  pf.addColorStop(0.22, 'rgba(58,66,80,0.74)');
+  pf.addColorStop(0.52, 'rgba(70,80,96,0.88)');
+  pf.addColorStop(0.78, 'rgba(28,33,42,0.94)');
+  pf.addColorStop(1.0, 'rgba(6,8,11,0.98)');
   g.fillStyle = pf;
   g.fillRect(0, h * 0.52, w, h * 0.48);
 
@@ -2213,11 +2270,11 @@ export function makeBallProbe(w = 512) {
   // Small and comparatively dim: they are accents on a steel mirror, not
   // the dominant colour of the ball.
   for (const [fx, fy, r, col, a] of [
-    [0.18, 0.70, 0.045, 'rgba(255,110,150,%A%)', '0.60'],
-    [0.42, 0.82, 0.050, 'rgba(120,235,255,%A%)', '0.58'],
+    [0.18, 0.70, 0.045, 'rgba(226,88,58,%A%)', '0.58'],
+    [0.42, 0.82, 0.050, 'rgba(255,196,110,%A%)', '0.58'],
     [0.66, 0.68, 0.042, 'rgba(255,210,120,%A%)', '0.55'],
-    [0.88, 0.79, 0.046, 'rgba(190,160,255,%A%)', '0.48'],
-    [0.05, 0.90, 0.040, 'rgba(140,255,215,%A%)', '0.42'],
+    [0.88, 0.79, 0.046, 'rgba(186,208,230,%A%)', '0.46'],
+    [0.05, 0.90, 0.040, 'rgba(120,196,140,%A%)', '0.42'],
     [0.74, 0.94, 0.044, 'rgba(255,170,120,%A%)', '0.38'],
   ]) {
     blob(w * fx, h * fy, w * r, col, a);

@@ -111,6 +111,7 @@ class Game {
     // Latched separately: steering must not retire the throttle assist.
     this.userThrottling = false;
     this.stuckT = 0;
+    this.beachedT = 0;
     this.unsticking = false;
     this.unstickT = 0;
     this.frames = 0;
@@ -136,7 +137,8 @@ class Game {
     this.shockPos = new THREE.Vector3();
     this.wetness = 1.0;
     this.shake = 0;
-    this.shakeDecay = 3.2;
+    this.shakeDecay = 4.6;
+    this.lastSlowmo = -99;
     this.cameraMode = this.params.get('cam') || 'chase';
     this.score = 0;
     this.takedowns = 0;
@@ -455,7 +457,11 @@ class Game {
   }
 
   cycleCamera() {
-    const order = ['chase', 'hood', 'cinematic', 'orbit'];
+    // 'cinematic' (a drifting drone orbit) and 'orbit' are not drivable views;
+    // leaving them in the C-key rotation meant a curious player could put the
+    // game into a camera that swings on its own. They remain reachable with
+    // ?cam= for capture work.
+    const order = ['chase', 'hood'];
     const i = order.indexOf(this.cameraMode);
     this.setCamera(order[(i + 1) % order.length]);
   }
@@ -626,13 +632,19 @@ class Game {
   }
 
   // -------------------------------------------------------------- effects
+  //
+  // Shake used to peak at 1.6, and the offset is amplitude = shake^2 * 0.5 --
+  // i.e. up to 1.28 METRES of per-frame random camera displacement. That alone
+  // made the game unreadable on any contact. Capped hard and decayed faster.
   impactShake(a) {
-    this.shake = Math.min(1.6, this.shake + a * 1.5);
-    this.hud.impactFlash(clamp(a * 0.7, 0, 0.55));
-    if (this.post) this.post.u.uFlash.value = clamp(this.post.u.uFlash.value + a * 0.5, 0, 0.45);
+    this.shake = Math.min(0.5, this.shake + a * 0.45);
+    this.hud.impactFlash(clamp(a * 0.5, 0, 0.35));
+    if (this.post) this.post.u.uFlash.value = clamp(this.post.u.uFlash.value + a * 0.32, 0, 0.32);
   }
 
-  hitStop(d) { this.hitStopT = Math.max(this.hitStopT, d); }
+  // Hit-stop is a single-frame punctuation mark, not a mode. Anything longer
+  // reads as the game stalling.
+  hitStop(d) { this.hitStopT = Math.max(this.hitStopT, Math.min(d, 0.06)); }
 
   /**
    * Hand a wrecked car one of the fixed pool of fire lights. Freshest wreck
@@ -714,7 +726,7 @@ class Game {
     // Hard, but short. A 0.14x scale held for ~3s of wall time advances barely
     // 0.4s of game time -- the replay stops being a replay and becomes a pause,
     // and the player is dumped back out having lost all their speed.
-    this.slowmo(0.17, 1.7);
+    this.slowmo(0.32, 1.0);
     this.takedownCamT = TAKEDOWN_CAM_LEN;
     this._camBeat = -1;
     this.takedownTarget = car;
@@ -722,7 +734,7 @@ class Game {
     this.cameraMode = 'crashcam';
     this.crashCamAngle = this.rng.range(0, Math.PI * 2);
     this.impactShake(1.5);
-    this.hitStop(0.17);
+    this.hitStop(0.06);
     // Ramming a rival hard bleeds the hero's speed; it also keeps both cars
     // inside the replay framing instead of the hero rocketing out of shot.
     this.player.veh.body.vel.multiplyScalar(0.62);
@@ -742,7 +754,9 @@ class Game {
       this.nearMissCallT = this.time;
       this.hud.showChain('NEAR MISS');
     }
-    this.slowmo(0.68, 0.16);
+    // Deliberately NO slow motion here. Near misses fire continuously in
+    // traffic, and the old `slowmo(0.68, 0.16)` meant the world was lurching
+    // in and out of half speed several times a second.
   }
 
   addScore(n) { this.score += n; if (this.crashMode) this.crashScore += n; }
@@ -774,15 +788,18 @@ class Game {
   stuckWatchdog(dtWall) {
     const p = this.player;
     if (!p || p.wrecked || this.crashMode || !this.playerControlled || this.paused || this.time < 4) {
-      this.stuckT = 0; this.unsticking = false; this.unstickT = 0;
+      this.stuckT = 0; this.unsticking = false; this.unstickT = 0; this.beachedT = 0;
       return;
     }
     const veh = p.veh;
     const braking = this.keys.ArrowDown || this.keys.KeyS;
 
-    if (!braking && veh.speed < 7.0) this.stuckT += dtWall; else this.stuckT = 0;
-    if (this.stuckT > 0.18) this.unsticking = true;
-    if (this.unsticking && veh.speed > 22) { this.unsticking = false; this.unstickT = 0; }
+    if (!braking && veh.speed < 5.0) this.stuckT += dtWall; else this.stuckT = 0;
+    // A car sliding along on its flank keeps enough speed to look "unstuck"
+    // while being completely unplayable, so beaching is tracked separately.
+    if (veh.up.y < 0.5) this.beachedT = (this.beachedT || 0) + dtWall; else this.beachedT = 0;
+    if (this.stuckT > 0.6 || this.beachedT > 1.2) this.unsticking = true;
+    if (this.unsticking && veh.speed > 18 && this.beachedT === 0) { this.unsticking = false; this.unstickT = 0; }
     if (!this.unsticking) return;
 
     this.unstickT += dtWall;
@@ -793,12 +810,13 @@ class Game {
     // geometrically wedged and no amount of force will free it, so put it back
     // on the racing line at speed. Every arcade racer has this recovery; the
     // alternative is a player staring at a stationary car.
-    if (this.unstickT > 0.5) {
+    if (this.unstickT > 0.9 || this.beachedT > 1.8) {
       const s2 = this.track.wrapS(veh.trackS + 8);
       const fr = this.track.frameAt(s2, _frame);
       veh.reset(s2, 0, this.track);
-      b.vel.copy(fr.tan).multiplyScalar(28);
-      this.unsticking = false; this.unstickT = 0; this.stuckT = 0;
+      b.vel.copy(fr.tan).multiplyScalar(24);
+      this.unsticking = false; this.unstickT = 0; this.stuckT = 0; this.beachedT = 0;
+      this._camCut = true;
       this.hud.showChain('RECOVERED');
       return;
     }
@@ -811,7 +829,7 @@ class Game {
     // Set, don't accumulate: a genuinely wedged car has the solver delete any
     // velocity we add within the same frame, so an incremental ramp never wins.
     const tanV = b.vel.dot(f.tan);
-    if (tanV < 22) { b.vel.addScaledVector(f.tan, 22 - tanV); }
+    if (tanV < 19) { b.vel.addScaledVector(f.tan, 19 - tanV); }
     b.vel.addScaledVector(f.right, inward * dtWall * 26);
     b.pos.addScaledVector(f.right, inward * dtWall * 5.5);
     const fw = veh.forward;
@@ -819,7 +837,16 @@ class Game {
                           fw.x * f.tan.x + fw.z * f.tan.z) * dtWall * 16;
   }
 
-  slowmo(scale, duration) {
+  /**
+   * Slow motion is a punctuation mark reserved for the signature moments
+   * (takedowns, wrecks). Measured on the shipped build the game was in some
+   * fraction of bullet time almost continuously -- near misses alone fire
+   * several times a second in traffic -- which is what "the animation is all
+   * over the place" actually was. A cooldown makes it rare by construction.
+   */
+  slowmo(scale, duration, minGap = 0) {
+    if (minGap > 0 && this.realTime - this.lastSlowmo < minGap) return;
+    this.lastSlowmo = this.realTime;
     this.targetTimeScale = scale;
     this.slowmoT = duration;
     this.audio.setSlowmo(1 - scale);
@@ -833,8 +860,13 @@ class Game {
     this.crashStartWall = this.realTime;
     this.crashMeter = 0;
     this.crashScore = 0;
-    this.targetTimeScale = 0.17;
-    this.slowmoT = 4.6;
+    // Was 0.17x held for the whole 7.5s of crash mode -- seven real seconds of
+    // ultra slow motion after every wreck, which is where a lot of the "the
+    // game keeps lurching" came from. One short beat of bullet time, then the
+    // aftertouch plays at a readable speed.
+    this.targetTimeScale = 0.34;
+    this.slowmoT = 1.2;
+    this.lastSlowmo = this.realTime;
     if (this.cameraMode !== 'crashcam') this.prevCam = this.cameraMode;
     this.cameraMode = 'crashcam';
     this.takedownTarget = null;
@@ -863,10 +895,18 @@ class Game {
     const s = t.wrapS(p.veh.trackS + 30);
     p.veh.reset(s, clamp(p.veh.trackU, -8, 8), t);
     const f = t.frameAt(s, _frame);
-    p.veh.body.vel.copy(f.tan).multiplyScalar(38);
+    p.veh.body.vel.copy(f.tan).multiplyScalar(32);
     p.repair();
     this.boost = Math.max(this.boost, 0.4);
     this.chain = 0;
+    // The car has just teleported 30 m. Without a cut the chase rig spends a
+    // second flying across the world to catch up, which reads as the camera
+    // losing control at exactly the moment the player is trying to work out
+    // where they are.
+    this._camCut = true;
+    this._camBeat = -1;
+    this.shake = 0;
+    this.camLean = 0;
   }
 
   // ------------------------------------------------------------ collisions
@@ -989,9 +1029,14 @@ class Game {
       const steer = (k.ArrowRight || k.KeyD ? 1 : 0) - (k.ArrowLeft || k.KeyA ? 1 : 0);
       const push = (k.ArrowUp || k.KeyW ? 1 : 0) - (k.ArrowDown || k.KeyS ? 1 : 0);
       const f = this.track.frameAt(p.veh.trackS, _frame);
-      if (steer) b.applyCentralForce(_v1.copy(f.right).multiplyScalar(steer * b.mass * 18));
-      if (push) b.applyCentralForce(_v1.copy(f.tan).multiplyScalar(push * b.mass * 15));
-      if (k.Space) b.applyCentralForce(_v1.set(0, b.mass * 26, 0));
+      // Aftertouch is a nudge to steer the wreck into more traffic, not a
+      // rocket motor. The shipped values applied 15 m/s^2 along the track for
+      // as long as the player held accelerate, which over a crash-mode
+      // sequence accelerated the wrecked car past 290 km/h.
+      const room = clamp((38 - p.veh.speed) / 12, 0, 1);
+      if (steer) b.applyCentralForce(_v1.copy(f.right).multiplyScalar(steer * b.mass * 9));
+      if (push) b.applyCentralForce(_v1.copy(f.tan).multiplyScalar(push * b.mass * 6 * (push > 0 ? room : 1)));
+      if (k.Space) b.applyCentralForce(_v1.set(0, b.mass * 15, 0));
       inp.throttle = 0; inp.brake = 0; inp.steer = 0; inp.boost = 0; inp.handbrake = 0;
       return;
     }
@@ -1013,7 +1058,18 @@ class Game {
     // disengaged the instant a key went down, which ALSO cut the corner-entry
     // braking, so tapping left sent the car into the first barrier at full speed
     // (measured: 33.9 -> 1.6 m/s, health 1.0 -> 0.66).
-    if (manualSteer !== 0) this.userDriving = true;
+    if (manualSteer !== 0 && !this.userDriving) {
+      this.userDriving = true;
+      // Hand the wheel over from centre. Without this the ramp starts wherever
+      // the autopilot happened to have it, so the player's first input can
+      // produce almost no change in lock at all -- the control reads as dead
+      // for a third of a second. One clean handover frame is invisible in play.
+      p.veh.steerRaw = 0;
+      p.veh.steerCmd = 0;
+    }
+    // The autopilot is not a pair of hands: it steers through the ramp only
+    // once the player has taken over.
+    p.veh.instantSteer = !this.userDriving;
 
     // The racing line still runs every frame, but only ever contributes braking
     // once the player has taken over. A safety net that scrubs speed is a
@@ -1048,19 +1104,30 @@ class Game {
       // was held at walking pace by its own safety net with the throttle down.
       // Below ~14 m/s nothing needs scrubbing; fade it in above that.
       const spdGate = clamp((p.veh.speed - 14) / 16, 0, 1);
-      const w = (this.userDriving ? 0.55 : 0.9) * spdGate;
-      inp.brake = Math.min(1, assistBrake * w);
-      inp.throttle *= 1 - clamp(assistBrake, 0, 1) * 0.85 * w;
+      // Once the player has taken over, the net is a light touch, not a
+      // co-driver stamping on the middle pedal: the shipped 0.55 weight made
+      // the car surge and stall between 33 and 57 m/s on a straight, which is
+      // most of what "the controls are all over the place" felt like. It is
+      // also smoothed, so it can never be applied as a stab.
+      const w = ((this.userDriving || this.userThrottling) ? 0.26 : 0.9) * spdGate;
+      this.assistBrakeSm = (this.assistBrakeSm || 0) +
+        (Math.min(1, assistBrake * w) - (this.assistBrakeSm || 0)) * clamp(dt * 3.5, 0, 1);
+      inp.brake = this.assistBrakeSm;
+      inp.throttle *= 1 - clamp(this.assistBrakeSm, 0, 1) * 0.85;
+    } else {
+      this.assistBrakeSm = (this.assistBrakeSm || 0) * (1 - clamp(dt * 4, 0, 1));
     }
     inp.steer = this.userDriving ? manualSteer : assistSteer;
-    inp.handbrake = k.Space ? 1 : 0;
+    // Site-wide convention: SPACE is the signature action. In Burnout that is
+    // BOOST. Handbrake moves to Shift.
+    inp.handbrake = (k.ShiftLeft || k.ShiftRight) ? 1 : 0;
 
     // Recovery assist (see stuckWatchdog, which runs on wall time): while it is
     // engaged the throttle is held open. Steering input is deliberately left
     // untouched, so the player never feels the wheel go light.
     if (this.unsticking && !keyBrake) { inp.throttle = Math.max(inp.throttle, 0.85); inp.brake = 0; }
 
-    let wantBoost = (k.ShiftLeft || k.ShiftRight);
+    let wantBoost = k.Space;
     if (this.forceBoost > 0) { this.forceBoost -= dt; wantBoost = true; }
     if (wantBoost && this.boost > 0.02) {
       if (!this.boosting) this.audio.boostHit();
@@ -1091,7 +1158,7 @@ class Game {
     const p = this.player;
     const b = p.veh.body;
     const speed = p.veh.speed;
-    const spd01 = clamp(speed / 95, 0, 1.3);
+    const spd01 = clamp(speed / 58, 0, 1.15);
     const boostK = this.boosting ? 1 : 0;
 
     const fwd = _v1.copy(p.veh.forward);
@@ -1135,10 +1202,12 @@ class Game {
         break;
       case 'crashcam': {
         // Burnout's takedown replay is a CUT sequence, not a drone orbit:
-        //   beat A (0.00-0.85s) low two-shot that frames BOTH cars,
-        //   beat B (0.85-2.10s) hard cut to a ground-level hero angle looking
-        //                       up at the wreck against the sky,
-        //   beat C (2.10-3.20s) hard cut to a slow push-in on the victim.
+        //   beat A (0.00-1.35s) low two-shot that frames BOTH cars,
+        //   beat B (1.35s+)     one hard cut to a slow push-in on the victim.
+        // The shipped version had THREE beats and therefore TWO hard cuts
+        // inside 3.2 seconds, each of which also re-randomised the azimuth.
+        // That is a lot of discontinuity for one event and it is a large part
+        // of why the game read as "camera all over the place".
         const victim = this.takedownTarget || p;
         // A wreck that has tunnelled below the deck would drag the whole
         // framing underground and leave the replay staring at asphalt, so the
@@ -1151,14 +1220,16 @@ class Game {
         const hsurf = this.track.surface(hp.x, hp.z, p.veh.hint);
         if (hsurf) hp.y = clamp(hp.y, hsurf.y + 0.35, hsurf.y + 9);
         const t = this.takedownCamT > 0 ? (TAKEDOWN_CAM_LEN - this.takedownCamT) : this.time - this.crashStart;
-        const beat = t < 0.85 ? 0 : (t < 2.10 ? 1 : 2);
+        const beat = t < 1.35 ? 0 : 2;
         if (beat !== this._camBeat) {
           this._camBeat = beat;
           this._camCut = true;                      // force a hard cut, no lerp
-          this.crashCamAngle = this.rng.range(0, Math.PI * 2);
-          if (beat === 0) this.crashCamSide = this.rng.next() < 0.5 ? -1 : 1;
+          if (beat === 0) {
+            this.crashCamAngle = this.rng.range(0, Math.PI * 2);
+            this.crashCamSide = this.rng.next() < 0.5 ? -1 : 1;
+          }
         }
-        if (!this.cineFrozen) this.crashCamAngle += dt * (beat === 2 ? 0.42 : 0.16);
+        if (!this.cineFrozen) this.crashCamAngle += dt * (beat === 2 ? 0.30 : 0.12);
         // framing point biased toward the victim, so the wreck is the subject
         // even when the hero has carried speed away from the impact.
         // Beat 0 is a TWO-shot: bias the framing point to the true midpoint or
@@ -1195,20 +1266,10 @@ class Game {
           fovTarget = 56;
           stiff = 4.2;
           this.camRollTarget = side * 0.06;
-        } else if (beat === 1) {
-          // hero angle: on the deck, looking UP at the wreck against the sky,
-          // but keeping the road line in frame so the shot has a floor.
-          const ang = this.crashCamAngle + 2.1;
-          const gy = vgy;
-          desired.set(tp.x + Math.sin(ang) * (11.4 + wide), gy + 1.55 + wide * 0.62, tp.z + Math.cos(ang) * (11.4 + wide));
-          look.copy(tp); look.y = gy + (tp.y - gy) * 0.7 + 0.55;
-          fovTarget = 45;
-          stiff = 3.0;
-          this.camRollTarget = -0.10;
         } else {
           // push-in, slight orbit, victim fills frame
           const ang = this.crashCamAngle + 4.4;
-          const r = 11.5 + wide - clamp((t - 2.10) * 2.2, 0, 3.2);
+          const r = 11.5 + wide - clamp((t - 1.35) * 2.2, 0, 3.2);
           // Sit ABOVE the wreck. Framing from below put the lens under an
           // airborne, inverted car and filled the shot with floor pan and
           // suspension -- the least readable surface on the vehicle.
@@ -1221,13 +1282,17 @@ class Game {
         break;
       }
       default: {
-        const back = 7.1 + spd01 * 2.2 + boostK * 1.8;
-        const height = 2.52 + spd01 * 0.45;
+        // Sit lower and a touch closer than before. With the top speed brought
+        // down from 317 to ~200 km/h the SENSATION of speed has to come from
+        // the rig: low eyeline, ground rushing past, FOV that opens up with
+        // pace and punches on boost.
+        const back = 6.5 + spd01 * 2.0 + boostK * 1.6;
+        const height = 1.95 + spd01 * 0.42;
         desired.set(b.pos.x - ys * back, b.pos.y + height, b.pos.z - yc * back);
         const surf = this.track.surface(desired.x, desired.z, p.veh.hint);
-        if (surf && desired.y < surf.y + 1.5) desired.y = surf.y + 1.5;
-        look.set(b.pos.x + ys * (8.5 + spd01 * 5), b.pos.y + 1.12, b.pos.z + yc * (8.5 + spd01 * 5));
-        fovTarget = 58 + spd01 * 15 + boostK * 17;
+        if (surf && desired.y < surf.y + 1.15) desired.y = surf.y + 1.15;
+        look.set(b.pos.x + ys * (8.5 + spd01 * 5), b.pos.y + 1.05, b.pos.z + yc * (8.5 + spd01 * 5));
+        fovTarget = 60 + spd01 * 20 + boostK * 16;
         stiff = 6.0 + spd01 * 3.2;
         break;
       }
@@ -1295,10 +1360,12 @@ class Game {
 
     this.shake = Math.max(0, this.shake - dt * this.shakeDecay);
     const sh = this.shake * this.shake;
-    // Boost has to be felt, not just seen: the rig gets a hard high-frequency
-    // rumble the instant it lights, on top of the FOV punch and speed lines.
-    const rumble = (spd01 > 0.72 ? (spd01 - 0.72) * 0.5 : 0) + (this.boosting ? 0.95 : 0);
-    const amp = sh * 0.5 + rumble * 0.14;
+    // Boost has to be felt, not just seen: the rig gets a rumble the instant it
+    // lights, on top of the FOV punch and speed lines. Amplitudes are in METRES
+    // -- the shipped values peaked at 1.28 m of per-frame random displacement,
+    // which is not camera shake, it is teleportation.
+    const rumble = (spd01 > 0.80 ? (spd01 - 0.80) * 0.4 : 0) + (this.boosting ? 0.5 : 0);
+    const amp = Math.min(0.16, sh * 0.42) + rumble * 0.045;
     this.shakeOffset.set(
       (Math.random() - 0.5) * amp,
       (Math.random() - 0.5) * amp,
@@ -1309,11 +1376,16 @@ class Game {
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.camLook);
     const rollWant = this.cameraMode === 'crashcam' ? (this.camRollTarget || 0) : 0;
-    this.camRoll = (this.camRoll || 0) + (rollWant - (this.camRoll || 0)) * 0.08;
+    this.camRoll = (this.camRoll || 0) + (rollWant - (this.camRoll || 0)) * clamp(dt * 5, 0, 1);
     if (Math.abs(this.camRoll) > 0.001) this.camera.rotateZ(this.camRoll);
     if (this.cameraMode === 'chase' || this.cameraMode === 'hood') {
+      // Drift lean. This was computed raw from the instantaneous lateral
+      // velocity and allowed up to 6.9 degrees, so the horizon twitched every
+      // frame the tyres scrubbed. Smoothed, and halved.
       const lat = b.vel.dot(p.veh.right) / Math.max(14, speed);
-      this.camera.rotateZ(clamp(lat * 0.15, -0.12, 0.12));
+      const want = clamp(lat * 0.10, -0.055, 0.055);
+      this.camLean = (this.camLean || 0) + (want - (this.camLean || 0)) * clamp(dt * 4.0, 0, 1);
+      if (Math.abs(this.camLean) > 0.001) this.camera.rotateZ(this.camLean);
     }
     this.camFov += (fovTarget - this.camFov) * clamp(dt * (fovTarget > this.camFov ? 8.5 : 4.0), 0, 1);
     if (Math.abs(this.camera.fov - this.camFov) > 0.02) {
@@ -1407,12 +1479,14 @@ class Game {
 
     if (this.crashMode) {
       this.crashMeter = clamp(this.crashMeter - dt * 0.02, 0, 1);
-      if (!this.cineHold && this.realTime - this.crashStartWall > 7.5) this.exitCrashMode();
+      if (!this.cineHold && this.realTime - this.crashStartWall > 5.0) this.exitCrashMode();
     }
 
     if (this.slowmoT > 0) {
       this.slowmoT -= dt / Math.max(0.05, this.timeScale);
-      if (this.slowmoT <= 0 && !this.crashMode) {
+      if (this.slowmoT <= 0) {
+        // Unconditional: crash mode used to hold bullet time open until it
+        // exited, so a wreck froze the world for seven real seconds.
         this.targetTimeScale = 1;
         this.audio.setSlowmo(0);
       }
@@ -1432,7 +1506,9 @@ class Game {
 
     if (this.hitStopT > 0) {
       this.hitStopT -= dtWall;
-      this.timeScale += (0.05 - this.timeScale) * 0.7;
+      // 0.05x was a dead stop. 0.28x still lands the punch but the world keeps
+      // visibly moving, so it reads as impact rather than as a dropped frame.
+      this.timeScale += (0.28 - this.timeScale) * 0.5;
     } else {
       this.timeScale += (this.targetTimeScale - this.timeScale) * clamp(dtWall * 8, 0, 1);
     }
@@ -1478,7 +1554,7 @@ class Game {
     if (p.veh.justShifted) { p.veh.justShifted = 0; this.audio.blowoff(); }
 
     const u = this.post.u;
-    const spd01 = clamp(p.veh.speed / 100, 0, 1.2);
+    const spd01 = clamp(p.veh.speed / 58, 0, 1.15);
     u.uTime.value = this.realTime;
     u.uSpeed.value += (spd01 * 0.85 - u.uSpeed.value) * clamp(dtWall * 6, 0, 1);
     u.uBoost.value += ((this.boosting ? 1 : 0) - u.uBoost.value) * clamp(dtWall * 5, 0, 1);

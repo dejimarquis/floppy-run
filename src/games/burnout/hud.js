@@ -105,7 +105,7 @@ export class HUD {
       <canvas id="co-mini" class="fx" width="220" height="220"></canvas>
       <div id="co-boostwrap">
         <div id="co-boostbar"><div id="co-boostfill"></div><div id="co-boostticks"><i></i><i></i><i></i><i></i></div></div>
-        <div id="co-boostlabel">Boost — Shift</div>
+        <div id="co-boostlabel">Boost — SPACE</div>
       </div>
       <div id="co-chain"></div>
       <div id="co-pops"></div>
@@ -115,7 +115,7 @@ export class HUD {
       <div id="co-title">
         <h1>CRASHOUT</h1>
         <p>Takedown Racing</p>
-        <div class="keys">↑ / W accelerate &nbsp;·&nbsp; ↓ / S brake &nbsp;·&nbsp; ← → steer &nbsp;·&nbsp; SHIFT boost &nbsp;·&nbsp; SPACE handbrake &nbsp;·&nbsp; C camera</div>
+        <div class="keys">↑ / W accelerate &nbsp;·&nbsp; ↓ / S brake &nbsp;·&nbsp; ← → / A D steer &nbsp;·&nbsp; SPACE boost &nbsp;·&nbsp; SHIFT handbrake &nbsp;·&nbsp; C camera</div>
       </div>
     `;
     (root || document.body).appendChild(el);

@@ -250,12 +250,12 @@ export function createMaterials(renderer, env) {
       emissiveIntensity: opts.emissive ?? 0.06,
     });
 
-  M.plasticRed = plastic(0xff2f52);
-  M.plasticBlue = plastic(0x2f9dff);
+  // Space Cadet's plastics are amber, signal red, deck green and smoked
+  // blue-grey. There is no cyan or magenta anywhere on the machine.
+  M.plasticRed = plastic(0xd8402c);
   M.plasticAmber = plastic(0xffb02a);
-  M.plasticGreen = plastic(0x6fd9a0);
-  M.plasticPurple = plastic(0xa14cff);
-  M.plasticCyan = plastic(0x2fe6ff);
+  M.plasticGreen = plastic(0x4fbf6e);
+  M.plasticSteel = plastic(0x7fa4c4);
   M.plasticClear = plastic(0xdfe8f5, { transmission: 0.9, emissive: 0.0, att: 0.08 });
 
   M.cabWood = mkMat(THREE, {

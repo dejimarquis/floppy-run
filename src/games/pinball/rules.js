@@ -10,10 +10,10 @@ import * as THREE from 'three';
 
 const WARM = new THREE.Color(0xffd06a);
 const ORANGE = new THREE.Color(0xffa53c);
-const MB_COLS = [new THREE.Color(0xffffff), new THREE.Color(0x35e6ff), new THREE.Color(0xff3c8f)];
+const MB_COLS = [new THREE.Color(0xffffff), new THREE.Color(0xffb02a), new THREE.Color(0xd8402c)];
 const BUMPER_COLS = [
-  new THREE.Color(0x35e6ff),
-  new THREE.Color(0xff3c8f),
+  new THREE.Color(0xd8402c),
+  new THREE.Color(0xe9eff5),
   new THREE.Color(0xffd23c),
 ];
 import { L } from './layout.js';
@@ -26,7 +26,7 @@ export const RANKS = [
   { name: 'LIEUTENANT', at: 1200000 },
   { name: 'COMMANDER', at: 3000000 },
   { name: 'CAPTAIN', at: 6500000 },
-  { name: 'ADMIRAL', at: 14000000 },
+  { name: 'FLEET ADMIRAL', at: 14000000 },
 ];
 
 const MODES = {
@@ -265,8 +265,8 @@ export class Rules {
         d.down = true;
         this.dropsDown++;
         g.audio.clack(1 + idx * 0.12);
-        g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0x7fe8ff), 8, 0.9);
-        this.addScore(6000, ev.x, ev.y, new THREE.Color(0x7fe8ff));
+        g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xffd7a0), 8, 0.9);
+        this.addScore(6000, ev.x, ev.y, new THREE.Color(0xffc46a));
         this.bonus += 1200;
         if (this.dropsDown >= 4) {
           this.addScore(60000, ev.x, ev.y, new THREE.Color(0xffd06a));
@@ -316,7 +316,7 @@ export class Rules {
     if (tag === 'orbitWall') {
       if (impact > 1.2) {
         g.audio.ping(impact * 0.8);
-        g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xcfe6ff), 5, 0.8);
+        g.vfx.sparks(ev.x, ev.y, ev.nx, ev.ny, new THREE.Color(0xffe2be), 5, 0.8);
       }
       return;
     }
@@ -393,7 +393,7 @@ export class Rules {
       return;
     }
     if (tag === 'inlaneL' || tag === 'inlaneR') {
-      this.addScore(2200, ev.x, ev.y, new THREE.Color(0x4cff9d));
+      this.addScore(2200, ev.x, ev.y, new THREE.Color(0x7fdf9a));
       this.bonus += 500;
       g.audio.chime(3);
       // relight the outlane coil, exactly as a real machine does
@@ -480,7 +480,7 @@ export class Rules {
     g.audio.saucer();
     const wp = V(s.x, s.y, 0.02);
     g.table.group.localToWorld(wp);
-    g.cam.zoomTo(wp, 0.85, 1.5);
+    g.cam.zoomTo(wp, 0.3, 1.2);
 
     if (this.multiball) {
       this.jackpot(ball, 2);
@@ -580,7 +580,7 @@ export class Rules {
     const m = MODES[this.mode];
     this.modeCount++;
     const v = m.base * this.modeCount;
-    this.addScore(v, ev.x ?? ev.ball?.x, ev.y ?? ev.ball?.y, new THREE.Color(0x7fe8ff));
+    this.addScore(v, ev.x ?? ev.ball?.x, ev.y ?? ev.ball?.y, new THREE.Color(0xffc46a));
     this.g.dmd.show({ l1: m.name, l2: `${this.modeCount}/${m.need}`, dur: 1.0 });
     if (this.modeCount >= m.need) {
       this.missionsDone++;

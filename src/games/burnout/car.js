@@ -97,11 +97,14 @@ export class Car {
         trackWidth: S.width * 0.80,
         wheelR: S.wheelR,
         enginePower: opts.power ?? 56000,
-        topSpeed: opts.topSpeed ?? 86,
-        boostSpeed: opts.boostSpeed ?? 118,
+        topSpeed: opts.topSpeed ?? 55,
+        boostSpeed: opts.boostSpeed ?? 62,
       },
     });
     this.veh.owner = this;
+    // Only the hero car gets the human steering ramp; the AI does not have
+    // hands and a 0.25s lag just makes it miss apexes.
+    this.veh.instantSteer = !this.isPlayer;
     this.veh.onWallHit = (impact, p, n) => this.onWall(impact, p, n);
 
     this.group = new THREE.Group();
@@ -571,11 +574,17 @@ export class Car {
       g.vfx.glassBurst(worldPoint, Math.floor(6 + energy * 22), this.veh.body.vel);
       g.vfx.debrisBurst(worldPoint, Math.floor(2 + energy * 10), this.veh.body.vel);
       g.vfx.smokePuff(worldPoint, 3, this.veh.body.vel, 1.0, 0.22, 1.1);
-      g.shockAt(worldPoint, 0.35 + energy * 0.5);
+      if (this.isPlayer) g.shockAt(worldPoint, 0.35 + energy * 0.5);
     }
     g.audio.crunch(energy, worldPoint, source === 'wall');
-    if (this.isPlayer) g.impactShake(energy);
-    g.hitStop(clamp(energy * 0.075, 0, 0.11));
+    // Only the hero's own significant impacts are allowed to punctuate time or
+    // shake the rig. Previously EVERY car -- including rivals bumping traffic
+    // off screen -- called hitStop(), so the whole world stuttered several
+    // times a second for events the player could not even see.
+    if (this.isPlayer) {
+      g.impactShake(energy);
+      if (energy > 0.34) g.hitStop(clamp(energy * 0.05, 0, 0.06));
+    }
 
     if (this.health <= 0.02 && !this.wrecked) this.wreck(worldDir, energy);
     return energy;

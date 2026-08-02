@@ -412,7 +412,7 @@ export class Table {
         new THREE.CylinderGeometry(0.0062, 0.0062, 0.0022, 16),
         mkMat(THREE, {
           color: 0xffb347,
-          emissive: 0xff8a1e,
+          emissive: 0xff9a24,
           emissiveIntensity: 0.7,
           roughness: 0.32,
           metalness: 0,
@@ -497,7 +497,7 @@ export class Table {
       // ---- lit insert washing the plate from below --------------------
       const cen = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3];
       const glowMat = new THREE.MeshBasicMaterial({
-        color: 0xff6a2c,
+        color: 0xe0532a,
         transparent: true,
         opacity: 0.22,
         blending: THREE.AdditiveBlending,
@@ -520,7 +520,7 @@ export class Table {
       capGeo.rotateX(Math.PI / 2);
       capGeo.computeVertexNormals();
       remapPlanarUV(capGeo);
-      const capTex = canvasTexture(makePlasticArt(0xff5a2a, 'SLING', 256), {
+      const capTex = canvasTexture(makePlasticArt(0xe0532a, 'SLING', 256), {
         srgb: true,
         aniso: Q.aniso,
         renderer: this.renderer,
@@ -532,7 +532,7 @@ export class Table {
         roughness: 0.09,
         transparent: true,
         opacity: 0.84,
-        emissive: new THREE.Color(0xff5a2a),
+        emissive: new THREE.Color(0xe0532a),
         emissiveIntensity: 0.12,
         clearcoat: 1,
         clearcoatRoughness: 0.035,
@@ -595,7 +595,7 @@ export class Table {
         C[0] + (cen[0] - C[0]) * 0.35,
         C[1] + (cen[1] - C[1]) * 0.35,
         0.03,
-        0xff5a2a,
+        0xe0532a,
         0.042
       );
       const rec = { kick, band, flash, tag, glowMat, capMat, level: 0 };
@@ -664,7 +664,7 @@ export class Table {
         new THREE.CylinderGeometry(b.r * 0.98, b.r * 0.98, 0.012, 24),
         mkMat(THREE, {
           color: 0xffffff,
-          emissive: new THREE.Color(0x59d8ff),
+          emissive: new THREE.Color(0xbcd4e4),
           emissiveIntensity: 0.7,
           roughness: 0.18,
           transmission: 0.6,
@@ -702,7 +702,7 @@ export class Table {
         [0.0, 0.0254],
       ].map(([r, h]) => new THREE.Vector2(r, h));
       const capGeo = new THREE.LatheGeometry(prof, 28);
-      const capTex = canvasTexture(makeBumperCapArt(b.c || 0xff3c62, 512), {
+      const capTex = canvasTexture(makeBumperCapArt(b.c || 0xd8402c, 512), {
         srgb: true,
         aniso: Q.aniso,
         renderer: this.renderer,
@@ -712,7 +712,7 @@ export class Table {
         mkMat(THREE, {
           map: capTex,
           color: 0xffffff,
-          emissive: new THREE.Color(b.c || 0xff3c62),
+          emissive: new THREE.Color(b.c || 0xd8402c),
           emissiveIntensity: 0.28,
           roughness: 0.07,
           metalness: 0.0,
@@ -741,7 +741,7 @@ export class Table {
       const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.003, 6), this.M.steel);
       nut.position.copy(V(b.x, b.y, 0.0700));
       g.add(nut);
-      const light = new THREE.PointLight(0x66ddff, 0.12, 0.3, 2);
+      const light = new THREE.PointLight(0xffc78a, 0.12, 0.3, 2);
       if (!Q.practicalLights) light.visible = false;
       light.position.copy(V(b.x, b.y, 0.045));
       if (Q.eventLights) g.add(light);
@@ -807,7 +807,7 @@ export class Table {
     const nx = -Math.sin(ang);
     const ny = Math.cos(ang);
     this.parts.drops = [];
-    const cols = [0xff3c62, 0xffb02a, 0x74dfa8, 0x4cc4ff];
+    const cols = [0xd8402c, 0xffb02a, 0x4fbf6e, 0xdfe8f0];
     const LABELS = ['N', 'O', 'V', 'A'];
     for (let i = 0; i < b.count; i++) {
       const x0 = b.from[0] + dx * (i + 0.08);
@@ -907,14 +907,14 @@ export class Table {
       const y1 = s.y + Math.sin(s.a) * w * 0.5;
       const seg = new Segment(x0, y0, x1, y1, { mat: MAT.target, tag: s.id });
       this.world.add(seg);
-      const sf = canvasTexture(makeTargetFace(0xffd23c, 'BONUS', 256), {
+      const sf = canvasTexture(makeTargetFace(0xffbb2e, 'BONUS', 256), {
         srgb: true,
         aniso: Q.aniso,
         renderer: this.renderer,
       });
       const sBody = mkMat(THREE, {
-        color: 0xffd23c,
-        emissive: new THREE.Color(0xffd23c),
+        color: 0xffbb2e,
+        emissive: new THREE.Color(0xffbb2e),
         emissiveIntensity: 0.28,
         roughness: 0.14,
         clearcoat: 1,
@@ -980,8 +980,8 @@ export class Table {
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(s.r * 0.85, 24),
       new THREE.MeshStandardMaterial({
-        color: 0x1a0a30,
-        emissive: new THREE.Color(0x9a3cff),
+        color: 0x0e1620,
+        emissive: new THREE.Color(0x5f9ec6),
         emissiveIntensity: 1.2,
         roughness: 0.4,
       })
@@ -993,7 +993,7 @@ export class Table {
     ring.rotation.x = Math.PI / 2;
     ring.position.copy(V(s.x, s.y, 0.001));
     g.add(ring);
-    const light = new THREE.PointLight(0xa64cff, 0.35, 0.2, 2);
+    const light = new THREE.PointLight(0x5f9ec6, 0.35, 0.2, 2);
     if (!Q.practicalLights) light.visible = false;
     light.position.copy(V(s.x, s.y, 0.02));
     if (Q.eventLights) g.add(light);
@@ -1313,8 +1313,8 @@ export class Table {
       });
       return rail;
     };
-    this.railLeft = mk('left', L.rampLeft, 0xff5a2a, 'rampLeftEntry', 'FUEL');
-    this.railRight = mk('right', L.rampRight, 0x2fd8ff, 'rampRightEntry', 'ORBIT');
+    this.railLeft = mk('left', L.rampLeft, 0xe0532a, 'rampLeftEntry', 'FUEL');
+    this.railRight = mk('right', L.rampRight, 0x7fb0d8, 'rampRightEntry', 'ORBIT');
   }
 
   /* ------------------------------------------------------------ */
@@ -1442,9 +1442,9 @@ export class Table {
   buildPlastics() {
     // translucent plastic canopies over the bumper cluster, on posts
     const specs = [
-      { pts: [[-0.152, 0.63], [-0.075, 0.615], [0.014, 0.632], [0.086, 0.662], [0.086, 0.706], [-0.152, 0.706]], mat: 'plasticBlue', z: 0.055, c: 0x2f9dff, label: 'ORBIT' },
-      { pts: [[-0.158, 0.758], [-0.06, 0.738], [0.056, 0.748], [0.108, 0.778], [0.086, 0.822], [-0.14, 0.818]], mat: 'plasticPurple', z: 0.058, c: 0x9a5cff, label: 'NOVA' },
-      { pts: [[0.132, 0.42], [0.208, 0.4], [0.236, 0.46], [0.2, 0.5], [0.14, 0.48]], mat: 'plasticCyan', z: 0.05, c: 0x2fe0ff, label: 'FUEL' },
+      { pts: [[-0.152, 0.63], [-0.075, 0.615], [0.014, 0.632], [0.086, 0.662], [0.086, 0.706], [-0.152, 0.706]], mat: 'plasticSteel', z: 0.055, c: 0x6e9ec4, label: 'ORBIT' },
+      { pts: [[-0.158, 0.758], [-0.06, 0.738], [0.056, 0.748], [0.108, 0.778], [0.086, 0.822], [-0.14, 0.818]], mat: 'plasticSteel', z: 0.058, c: 0x8fb0cc, label: 'NOVA' },
+      { pts: [[0.132, 0.42], [0.208, 0.4], [0.236, 0.46], [0.2, 0.5], [0.14, 0.48]], mat: 'plasticGreen', z: 0.05, c: 0x4fbf6e, label: 'FUEL' },
       { pts: [[-0.236, 0.4], [-0.15, 0.38], [-0.12, 0.43], [-0.19, 0.47], [-0.236, 0.45]], mat: 'plasticAmber', z: 0.05, c: 0xffb02a, label: 'BURN' },
     ];
     for (const s of specs) {
@@ -1530,7 +1530,7 @@ export class Table {
       }
       // under-plastic GI strip
       if (Q.giLights) {
-        const gi = new THREE.PointLight(0x88bbff, 0.16, 0.16, 2);
+        const gi = new THREE.PointLight(0xffbe8a, 0.16, 0.16, 2);
         gi.position.copy(V(s.pts[0][0] + 0.03, s.pts[0][1] + 0.02, s.z - 0.012));
         this.playfieldGroup.add(gi);
       }
@@ -1592,20 +1592,20 @@ export class Table {
   buildLamps() {
     this.buildGIWash();
     const defs = [
-      { id: 'jackpot', x: -0.017, y: 0.44, w: 0.088, h: 0.024, c: 0xff2e6a, t: 'JACKPOT' },
-      { id: 'multiball', x: -0.017, y: 0.404, w: 0.088, h: 0.02, c: 0x6fd9a0, t: 'MULTIBALL' },
-      { id: 'bonusx', x: -0.098, y: 0.212, w: 0.05, h: 0.018, c: 0x5ad7ff, rot: -0.28, t: 'BONUS X' },
-      { id: 'extraball', x: 0.064, y: 0.212, w: 0.05, h: 0.018, c: 0xffb03c, rot: 0.28, t: 'EXTRA\nBALL' },
-      { id: 'reentry', x: -0.132, y: 0.318, w: 0.036, h: 0.05, c: 0xff5a2a, t: 'RE\nENTRY' },
-      { id: 'fuel', x: 0.126, y: 0.338, w: 0.036, h: 0.05, c: 0x39d7ff, t: 'FUEL\nLOAD' },
-      { id: 'outlaneL', x: -0.238, y: 0.18, w: 0.05, h: 0.017, c: 0xff3c6e, rot: -0.28, t: 'SPECIAL' },
-      { id: 'inlaneL', x: -0.152, y: 0.19, w: 0.05, h: 0.017, c: 0x2f8f60, rot: -0.28, t: 'COMBO' },
-      { id: 'outlaneR', x: 0.204, y: 0.18, w: 0.05, h: 0.017, c: 0xff3c6e, rot: 0.28, t: 'SPECIAL' },
-      { id: 'inlaneR', x: 0.118, y: 0.19, w: 0.05, h: 0.017, c: 0x2f8f60, rot: 0.28, t: 'COMBO' },
+      { id: 'jackpot', x: -0.017, y: 0.44, w: 0.088, h: 0.024, c: 0xd8402c, t: 'JACKPOT' },
+      { id: 'multiball', x: -0.017, y: 0.404, w: 0.088, h: 0.02, c: 0x4fbf6e, t: 'MULTIBALL' },
+      { id: 'bonusx', x: -0.098, y: 0.212, w: 0.05, h: 0.018, c: 0xe9eff5, rot: -0.28, t: 'BONUS X' },
+      { id: 'extraball', x: 0.064, y: 0.212, w: 0.05, h: 0.018, c: 0xffb02a, rot: 0.28, t: 'EXTRA\nBALL' },
+      { id: 'reentry', x: -0.132, y: 0.318, w: 0.036, h: 0.05, c: 0xe0532a, t: 'RE\nENTRY' },
+      { id: 'fuel', x: 0.126, y: 0.338, w: 0.036, h: 0.05, c: 0x4fbf6e, t: 'FUEL\nLOAD' },
+      { id: 'outlaneL', x: -0.238, y: 0.18, w: 0.05, h: 0.017, c: 0xd8402c, rot: -0.28, t: 'SPECIAL' },
+      { id: 'inlaneL', x: -0.152, y: 0.19, w: 0.05, h: 0.017, c: 0x3f9e5c, rot: -0.28, t: 'COMBO' },
+      { id: 'outlaneR', x: 0.204, y: 0.18, w: 0.05, h: 0.017, c: 0xd8402c, rot: 0.28, t: 'SPECIAL' },
+      { id: 'inlaneR', x: 0.118, y: 0.19, w: 0.05, h: 0.017, c: 0x3f9e5c, rot: 0.28, t: 'COMBO' },
     ];
     for (let i = 0; i < 4; i++) {
       const cx = (L.laneGuideX[i] + L.laneGuideX[i + 1]) / 2;
-      defs.push({ id: `nova${i}`, x: cx, y: 0.9, w: 0.03, h: 0.03, c: 0xffd23c, t: 'NOVA'[i] });
+      defs.push({ id: `nova${i}`, x: cx, y: 0.9, w: 0.03, h: 0.03, c: 0xffbb2e, t: 'NOVA'[i] });
     }
 
     // Lower-playfield insert field. A real machine never has a dark half; the
@@ -1620,7 +1620,7 @@ export class Table {
         y: 0.245 + i * 0.036,
         w: 0.026,
         h: 0.014,
-        c: i >= 5 ? 0xff8a2a : 0x5ad7ff,
+        c: i >= 5 ? 0xff8a2a : 0xdfe8f0,
         rot: -0.32,
         t: String(n) + 'X',
       });
@@ -1632,31 +1632,31 @@ export class Table {
         y: 0.245 + i * 0.036,
         w: 0.026,
         h: 0.014,
-        c: i >= 5 ? 0xff8a2a : 0x5ad7ff,
+        c: i >= 5 ? 0xff8a2a : 0xdfe8f0,
         rot: 0.32,
         t: String(n) + 'X',
       });
     });
     // award row across the centre, above the drop-target bank
     [
-      ['awdCombo', -0.108, 0.30, 0x9a6cff, 'COMBO'],
-      ['awdSuper', -0.017, 0.30, 0xffd23c, 'SUPER JET'],
-      ['awdLoop', 0.074, 0.30, 0x39d7ff, 'LOOP'],
+      ['awdCombo', -0.108, 0.30, 0x4fbf6e, 'COMBO'],
+      ['awdSuper', -0.017, 0.30, 0xffbb2e, 'SUPER JET'],
+      ['awdLoop', 0.074, 0.30, 0xdfe8f0, 'LOOP'],
     ].forEach(([id, x, y, c, t]) =>
       defs.push({ id, x, y, w: 0.062, h: 0.016, c, t })
     );
     // lane arrows feeding the flippers
     [
-      ['arrL', -0.196, 0.256, 0x2fe08a, -0.34],
-      ['arrR', 0.162, 0.256, 0x2fe08a, 0.34],
-      ['arrCL', -0.078, 0.372, 0xff5a2a, -0.18],
-      ['arrCR', 0.044, 0.372, 0xff5a2a, 0.18],
+      ['arrL', -0.196, 0.256, 0x4fbf6e, -0.34],
+      ['arrR', 0.162, 0.256, 0x4fbf6e, 0.34],
+      ['arrCL', -0.078, 0.372, 0xe0532a, -0.18],
+      ['arrCR', 0.044, 0.372, 0xe0532a, 0.18],
     ].forEach(([id, x, y, c, rot]) =>
       defs.push({ id, x, y, w: 0.026, h: 0.03, c, rot, shape: 'arrow' })
     );
     // shoot-again / tilt pair just above the drain
     defs.push({ id: 'shootAgain', x: -0.017, y: 0.118, w: 0.086, h: 0.019, c: 0xffffff, t: 'SHOOT AGAIN' });
-    defs.push({ id: 'tiltLamp', x: -0.017, y: 0.086, w: 0.05, h: 0.015, c: 0xff2a2a, t: 'TILT' });
+    defs.push({ id: 'tiltLamp', x: -0.017, y: 0.086, w: 0.05, h: 0.015, c: 0xd8402c, t: 'TILT' });
     const lensTex = insertLensTexture();
     // Every insert is a real part: a milled pocket, a coloured acrylic lens
     // sitting in it, a black bezel, and only then the additive glow on top.
@@ -1947,7 +1947,7 @@ export class Table {
       envMap: this.env,
       envMapIntensity: 0.8,
     });
-    const plainMat = mkMat(THREE, { color: 0x0a0b12, roughness: 0.5, metalness: 0.1, envMap: this.env, envMapIntensity: 0.4 });
+    const plainMat = mkMat(THREE, { color: 0x141b23, roughness: 0.42, metalness: 0.35, envMap: this.env, envMapIntensity: 0.5 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, bodyH, len), [
       sideMat, sideMat, plainMat, plainMat, plainMat, plainMat,
     ]);
@@ -2159,11 +2159,11 @@ export class Table {
     // top light bar
     const bar = new THREE.Mesh(
       new THREE.BoxGeometry(w * 0.9, 0.014, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x66ccff })
+      new THREE.MeshBasicMaterial({ color: 0xffab46 })
     );
     bar.position.set(0, h - 0.03, z + 0.005);
     g.add(bar);
-    const barLight = new THREE.PointLight(0x66ccff, 0.7, 1.4, 2);
+    const barLight = new THREE.PointLight(0xffab46, 0.7, 1.4, 2);
     if (!Q.practicalLights) barLight.visible = false;
     barLight.position.set(0, h - 0.03, z + 0.2);
     if (Q.eventLights) g.add(barLight);
@@ -2171,7 +2171,7 @@ export class Table {
 
     // backglass wash light onto the playfield
     if (Q.washSpot) {
-      const wash = new THREE.SpotLight(0xbfd8ff, 0.34, 3.4, 0.86, 0.98, 2.0);
+      const wash = new THREE.SpotLight(0xd8c8ac, 0.34, 3.4, 0.86, 0.98, 2.0);
       wash.position.set(-0.42, h * 1.30, z + 0.30);
       wash.target.position.set(0.06, 0, -0.62);
       g.add(wash);
@@ -2248,11 +2248,11 @@ export class Table {
     const keys = Object.keys(this.lamps);
     const chase = Math.floor(t * 12);
     const palette = {
-      multiball: [0x6fd9ff, 0xffffff, 0xb8ecff],
-      jackpot: [0xff2e6a, 0xffd23c, 0xffffff],
-      bumper: [0x8fd8ff, 0xffffff, 0x5ad7ff],
-      launch: [0xffb03c, 0xffffff, 0xff5a2a],
-      tilt: [0xff3020, 0x400000, 0xff3020],
+      multiball: [0xffd08a, 0xffffff, 0xdfe8f0],
+      jackpot: [0xd8402c, 0xffbb2e, 0xffffff],
+      bumper: [0xdfe8f0, 0xffffff, 0xffbb2e],
+      launch: [0xffb02a, 0xffffff, 0xe0532a],
+      tilt: [0xd8402c, 0x2a0800, 0xd8402c],
     }[s.kind] || [0xffffff];
     keys.forEach((k, i) => {
       const lp = this.lamps[k];

@@ -86,9 +86,9 @@ export const L = {
 
   // ---- pop bumpers ----------------------------------------------------
   bumpers: [
-    { x: -0.101, y: 0.699, r: 0.029, id: 'bumperA', c: 0xff3c62 },
-    { x: 0.063, y: 0.699, r: 0.029, id: 'bumperB', c: 0x2fd0ff },
-    { x: -0.019, y: 0.789, r: 0.029, id: 'bumperC', c: 0xffc32a },
+    { x: -0.101, y: 0.699, r: 0.029, id: 'bumperA', c: 0xd8402c },
+    { x: 0.063, y: 0.699, r: 0.029, id: 'bumperB', c: 0xdfe8f0 },
+    { x: -0.019, y: 0.789, r: 0.029, id: 'bumperC', c: 0xffb02a },
   ],
   bumperGuideL: [
     [-0.158, 0.6],

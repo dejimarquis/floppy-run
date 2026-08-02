@@ -481,7 +481,9 @@ export class Traffic {
     g.vfx.debrisBurst(point, Math.floor(3 + e * 12), it.body.vel);
     g.vfx.smokePuff(point, 3, it.body.vel, 1.1, 0.2, 1.3);
     g.vfx.flashAt(point, 0.85 + e * 1.25, 0.10, [2.0, 1.2, 0.5]);
-    g.shockAt(point, 0.4 + e * 0.5);
+    // Screen-space shockwave only for hits the player actually caused; a rival
+    // clipping traffic off camera used to warp the whole frame.
+    if (by === g.player) g.shockAt(point, 0.4 + e * 0.5);
     g.audio.crunch(e, point, false);
     if (e > 0.55) {
       g.vfx.explosion(it.body.pos, it.body.vel, 0.8, [it.color.r, it.color.g, it.color.b]);
