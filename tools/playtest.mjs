@@ -29,12 +29,27 @@ const ONLY = args.game;
 
 // Budgets. Deliberately generous under software GL; the point is to catch
 // broken, not to benchmark.
+// Human-feel budgets.
+//
+// IMPORTANT: an earlier version of this gate asserted `responseMs <= 120`,
+// i.e. "respond as fast as possible". Agents duly tuned the games toward
+// instant, twitchy, step-function steering to pass it, and the result felt
+// like it was built for a computer to play. Response is now a WINDOW: the
+// controls must wake up promptly, but must NOT snap to full lock -- a human
+// wants weight and a ramp.
 const BUDGET = {
   drawCalls: 300,
   programs: 40,
   bootMs: GPU ? 5000 : 40000,
-  responseMs: GPU ? 120 : 2500,
+  responseStartMs: GPU ? 200 : 2500, // must begin reacting by now
+  rampMinMs: 90,                     // ...but must NOT be at full lock before this
   minFps: GPU ? 50 : 0,
+};
+
+// Per-game human-feel limits. Top speeds are in m/s.
+const FEEL = {
+  'road-rash': { maxKmh: 200, rampMs: [90, 700] },
+  burnout: { maxKmh: 235, rampMs: [90, 700] },
 };
 
 const GAMES = [
@@ -154,22 +169,39 @@ for (const g of GAMES) {
     const errAfter = errors.length;
     check(g.id, 'flippers no errors', errAfter === 0, `${errAfter} errors`);
   } else {
-    // ---- INPUT RESPONSE: from a settled neutral, does a keypress change the
-    // steering command quickly? (Sampling from a non-neutral state gives false
-    // negatives when the car happens to already be steering that way.)
+    // ---- INPUT RESPONSE + RAMP.
+    // Two things must both hold: the controls wake up promptly, AND they do
+    // not teleport to full lock. Sampling the steer command every ~15ms from
+    // a settled neutral gives both the wake-up time and the shape of the ramp.
     await page.waitForTimeout(700);
     const before = await read();
     const tPress = Date.now();
     await page.keyboard.down('ArrowLeft');
     let respondedMs = -1;
-    for (let i = 0; i < 80; i++) {
+    let fullLockMs = -1;
+    const trace = [];
+    for (let i = 0; i < 120; i++) {
       const s = await read();
-      if (s && before && Math.abs(s.resp - before.resp) > 0.02) { respondedMs = Date.now() - tPress; break; }
-      await page.waitForTimeout(25);
+      if (!s || !before) { await page.waitForTimeout(15); continue; }
+      const d = Math.abs(s.resp - before.resp);
+      const t = Date.now() - tPress;
+      trace.push([t, +d.toFixed(3)]);
+      if (respondedMs < 0 && d > 0.02) respondedMs = t;
+      if (fullLockMs < 0 && d > 0.9) { fullLockMs = t; break; }
+      await page.waitForTimeout(15);
     }
     check(g.id, 'input responds', respondedMs >= 0, respondedMs >= 0 ? `${respondedMs}ms` : 'no response in 2s');
     if (respondedMs >= 0) {
-      check(g.id, 'response latency', respondedMs <= BUDGET.responseMs, `${respondedMs}ms (budget ${BUDGET.responseMs}ms)`);
+      check(g.id, 'wakes up promptly', respondedMs <= BUDGET.responseStartMs,
+        `${respondedMs}ms (budget ${BUDGET.responseStartMs}ms)`);
+    }
+    // The anti-twitch assertion. If the control is already pinned at full lock
+    // within rampMinMs, it is a step function, not a steering input.
+    if (fullLockMs >= 0) {
+      check(g.id, 'steering ramps (not instant)', fullLockMs >= BUDGET.rampMinMs,
+        `full lock at ${fullLockMs}ms (must be >= ${BUDGET.rampMinMs}ms)`);
+    } else {
+      check(g.id, 'steering ramps (not instant)', true, 'never pinned full lock');
     }
 
     // ---- DIRECTION: left must steer left. Sampled as an average of the
@@ -202,6 +234,22 @@ for (const g of GAMES) {
     // the "the game is fighting me" check.
     check(g.id, 'not punished for steering', !!surv && (surv.health ?? 1) > 0.35,
       surv ? `health ${(surv.health ?? 1).toFixed(2)}` : 'no probe');
+
+    // ---- TOP SPEED: hold throttle flat out and make sure the game is not
+    // moving faster than a human can read. Perceived speed should come from
+    // camera height, FOV kick and blur -- not from a huge number.
+    const feel = FEEL[g.id];
+    if (feel) {
+      await page.keyboard.down('ArrowUp');
+      let peakKmh = 0;
+      for (let i = 0; i < 40; i++) {
+        const s = await read();
+        if (s) peakKmh = Math.max(peakKmh, s.speed * 3.6);
+        await page.waitForTimeout(150);
+      }
+      check(g.id, 'top speed is human', peakKmh <= feel.maxKmh,
+        `${peakKmh.toFixed(0)} km/h (budget ${feel.maxKmh})`);
+    }
   }
 
   for (const k of g.drive) await page.keyboard.up(k).catch(() => {});

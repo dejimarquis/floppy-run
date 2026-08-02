@@ -33,6 +33,7 @@ export class Racer {
     this.leanTarget = 0;
     this.pitch = 0;
     this.steer = 0;
+    this.steerRaw = 0; // slew-limited steering command, pre-smoothing
     this.tuck = 0;
     this.gear = 1;
     this.rpm = 0.15;
@@ -55,7 +56,7 @@ export class Racer {
     this.railCooldown = 0;
     this.railBang = 0;
     this.input = { throttle: 0, brake: 0, steer: 0, boost: false };
-    this.maxSpeed = opts.maxSpeed ?? 79;
+    this.maxSpeed = opts.maxSpeed ?? 55;
     this.power = opts.power ?? 1;
     this.crashRig = null;
     this.finished = false;
@@ -107,19 +108,29 @@ export class Racer {
 
     // ---- lateral ----
     const sm = t.sample(this.s, this._sm);
-    // Arcade steering: two serial low-pass filters used to stack up to ~1s of
-    // mush. Both rates are now high enough that the bike answers the key in a
-    // couple of frames while still reading as a lean rather than a teleport.
+    // Arcade steering with weight. This is NOT a straight low-pass: an
+    // exponential damp reaches ~90% in a couple of frames and feels grabby and
+    // machine-like (an earlier gate literally rewarded "respond as fast as
+    // possible", which is how it got that way). Instead the steering command
+    // is slew-rate limited so it takes ~0.26s to travel from centre to full
+    // lock, then lightly smoothed. The bike answers immediately but leans into
+    // the turn like something with mass.
     const speedF = clamp(this.v / 34, 0.45, 1);
-    const steerAuthority = lerp(13.5, 9.8, clamp(this.v / this.maxSpeed, 0, 1)) * (1 - this.offroad * 0.35);
-    this.steer = damp(this.steer, clamp(inp.steer, -1, 1), 30, dt);
+    const steerAuthority = lerp(11.0, 7.6, clamp(this.v / this.maxSpeed, 0, 1)) * (1 - this.offroad * 0.35);
+    const steerTarget = clamp(inp.steer, -1, 1);
+    const SLEW = 3.9; // units/sec -> ~0.26s centre to lock
+    // Returning to centre is quicker than committing to a lean, which is how
+    // real steering feels and stops the bike from wallowing after a corner.
+    const slew = SLEW * (Math.abs(steerTarget) < Math.abs(this.steerRaw) ? 1.7 : 1);
+    this.steerRaw += clamp(steerTarget - this.steerRaw, -slew * dt, slew * dt);
+    this.steer = damp(this.steer, this.steerRaw, 16, dt);
     const centri = -sm.curv * this.v * this.v * 0.019;
     const bankHelp = sm.bank * this.v * 0.30;
     // Gentle auto-centring once you are off the carriageway: keeps a kid who
     // holds one direction pinned against the rail instead of buried in it.
     const edge = clamp((Math.abs(this.x) - (HW - 0.2)) / 2.2, 0, 1);
     const recenter = -Math.sign(this.x || 1) * edge * edge * 6.5;
-    this.vx = damp(this.vx, this.steer * steerAuthority * speedF + centri + bankHelp + recenter, 18, dt);
+    this.vx = damp(this.vx, this.steer * steerAuthority * speedF + centri + bankHelp + recenter, 11, dt);
     if (this.wobble > 0) {
       this.vx += Math.sin(performance.now() * 0.021) * this.wobble * 7;
       this.wobble = Math.max(0, this.wobble - dt * 0.7);

@@ -114,10 +114,10 @@ export class HUD {
       <div class="af-title" id="af-title">
         <h1>ASPHALT<br>FURY</h1>
         <h2>Canyon Circuit &nbsp;·&nbsp; Six Riders &nbsp;·&nbsp; No Rules</h2>
-        <div class="keys"><span><b>↑↓←→ / WASD</b> ride</span><span><b>Q / E</b> punch</span><span><b>F</b> kick</span><span><b>SHIFT</b> nitro</span></div>
+        <div class="keys"><span><b>↑↓←→ / WASD</b> ride</span><span><b>Q / E</b> punch</span><span><b>F</b> kick</span><span><b>SPACE</b> nitro</span></div>
         <div class="cta">Press any key to ride</div>
       </div>
-      <div class="af-hint" id="af-hint"><b>↑↓←→ / WASD</b> ride &nbsp;·&nbsp; <b>Q / E</b> punch &nbsp;·&nbsp; <b>F</b> kick &nbsp;·&nbsp; <b>SHIFT</b> nitro</div>
+      <div class="af-hint" id="af-hint"><b>↑↓←→ / WASD</b> ride &nbsp;·&nbsp; <b>Q / E</b> punch &nbsp;·&nbsp; <b>F</b> kick &nbsp;·&nbsp; <b>SPACE</b> nitro</div>
     `;
     container.appendChild(root);
     this.root = root;

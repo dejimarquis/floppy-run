@@ -1152,7 +1152,9 @@ function readInput(dt) {
   p.input.steer =
     (keys.has('ArrowRight') || keys.has('d') ? 1 : 0) -
     (keys.has('ArrowLeft') || keys.has('a') ? 1 : 0);
-  p.input.boost = keys.has('Shift');
+  // Space is the signature action in every game on this site (nitro / boost /
+  // plunger). It used to be unused here while nitro hid on Shift.
+  p.input.boost = keys.has(' ') || keys.has('Shift');
   if (p.punchCooldown <= 0) {
     if (keys.has('q') || keys.has('j')) attack(p, nearestTarget(-1), -1);
     else if (keys.has('e') || keys.has('l')) attack(p, nearestTarget(1), 1);
