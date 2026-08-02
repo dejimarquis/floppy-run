@@ -32,14 +32,21 @@ const fullPage = args.fullPage === 'true';
 
 mkdirSync(dirname(out), { recursive: true });
 
+// SwiftShader renders at ~1fps, which is fine for a static composition check
+// but useless for anything motion- or timing-dependent. --gpu drives a real
+// headed GPU context instead, the same way tools/playtest.mjs does.
+const useGpu = args.gpu === 'true';
 const browser = await chromium.launch({
-  args: [
-    '--use-gl=angle',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
-    '--enable-webgl',
-    '--autoplay-policy=no-user-gesture-required',
-  ],
+  headless: !useGpu,
+  args: useGpu
+    ? ['--autoplay-policy=no-user-gesture-required']
+    : [
+        '--use-gl=angle',
+        '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
+        '--enable-webgl',
+        '--autoplay-policy=no-user-gesture-required',
+      ],
 });
 const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
 
